@@ -4,29 +4,27 @@
 
 - Product: Medicine Inventory Tracker, household-first responsive web app. Future iOS/Android clients and general store inventory are long-term goals.
 - Repository: https://github.com/sudoku0412-stack/medicine-inventory-tracker (public).
-- Phase 1 is on main. Phase 2 item 1 (cabinet check button) is merged to main via PR #1.
-- Phase 2 item 2 is on `cursor/packaging-photo-suggest-94f5` (PR #2): packaging photos plus optional vision suggestions that require user confirmation.
+- Phase 2 item 1 (cabinet check button) is on main (PR #1).
+- Phase 2 item 2 (packaging photos / AI suggestions) is on main (PR #2).
+- Phase 2 item 3 (closed-app expiry alerts) is on `cursor/expiry-web-push-94f5` (PR #3), now rebased onto photos-on-main.
+- A follow-up Gemini scanner change is on `cursor/gemini-packaging-scan-94f5` (PR #4) and is not in this merge.
 - Stack: plain HTML/CSS/JavaScript, Node 26+ HTTP API, built-in SQLite. No third-party runtime dependencies. Run npm start; open http://127.0.0.1:3000. Run npm test.
-- Local data: `data/inventory.sqlite` and `data/photos/`, excluded from Git. Do not overwrite user inventory.
+- Local data: `data/inventory.sqlite`, `data/photos/`, and `data/vapid.json`, excluded from Git. Do not overwrite user inventory.
 
 ## Delivered behavior and limits
 
 - Manual batch creation/editing, quantity/unit and low-stock threshold, expiry/unknown expiry, location/notes, consume/discard, dashboard, search/status filters, responsive layouts, persistent in-app expiry reminders and read state.
 - Optional packaging photos (JPEG/PNG/WebP, 2 MB, real image signatures). Photos persist only after save and are removed on discard.
-- AI name/expiry suggestions run only when `VISION_API_KEY` is set (OpenAI-compatible URL/model optional). One call per photo, 20s timeout. Invalid or incomplete dates stay blank. Saving the form is confirmation. Manual entry always remains.
-- Expiry and reminder rules use date-only calendar arithmetic with a 30-day warning window. Same medicine may have multiple batches.
-- Local single-user application, no authentication. Default bind is 127.0.0.1. Static assets use an explicit allowlist.
-- Notifications are still IN-APP ONLY until item 3. No email/push delivery while the app is closed.
-- Tests cover persistence, validation/overdraw, edit/discard, date boundaries, reminder deduplication/read/stale cleanup, suggestion parsing, photo storage, and mocked suggest HTTP.
+- AI name/expiry suggestions run when `VISION_API_KEY` is set on this branch (OpenAI-compatible). Saving the form is confirmation. Manual entry always remains.
+- Web push expiry alerts: local VAPID keys, Notifications → Enable expiry alerts, service worker, server delivery when a 30-day reminder is created and on a 15-minute timer. Requires `npm start` plus a browser subscription on localhost or HTTPS. Not email.
+- Expiry and reminder rules use date-only calendar arithmetic with a 30-day warning window.
 
 ## Phase 2 progress
 
-1. **Done — Monthly cabinet check button.** Root cause: white inherited text on a white `.button.secondary` inside the dark reminder card. Fix is on main.
-2. **Done — packaging photos / AI suggest name and expiry.** Implemented with the decisions above. No provider credentials are stored in the repo; without a key, photos still attach and the user types name and expiry.
-3. **Not started — real expiry delivery (email or web push)** while the app is closed. No service credentials or deployment target selected.
-
-Household sharing and commercial store features remain later phases. Preserve the approved UI unless the user requests changes.
+1. **Done — Monthly cabinet check button.** On main.
+2. **Done — packaging photos / AI suggest name and expiry.** On main (PR #2). Gemini key wiring is a separate open PR (#4).
+3. **Done (this branch) — web push expiry alerts.** Merged with photos-on-main.
 
 ## Working agreement
 
-Do not launch Cursor cloud agents for this project; implement and review in this session. Do not re-fix item 1 unless a regression is found. Next: item 3, expiry alerts when the app is closed.
+Do not launch Cursor cloud agents for this project. Do not re-fix item 1 unless a regression is found.

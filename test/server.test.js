@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createStore, statusFor, suggestionFromModel, parseModelJson, parseDataUrl, MAX_PHOTO_BYTES, app } from '../server.js';
+import { createStore, statusFor, suggestionFromModel, parseModelJson, parseDataUrl, MAX_PHOTO_BYTES, app, createVapidKeys, createVapidJwt, verifyVapidJwt } from '../server.js';
 
 const fixed = () => new Date('2028-02-01T12:00:00Z');
 function fresh() {
@@ -143,6 +143,54 @@ test('suggest endpoint never auto-saves and uses one mocked vision call', async 
   assert.equal(photo.status, 200);
   assert.match(photo.headers.get('content-type'), /image\/jpeg/);
   assert.equal(photo.headers.get('x-content-type-options'), 'nosniff');
+  server.close();
+  store.close();
+  rmSync(dir, { recursive: true });
+});
+
+test('VAPID JWT signs with the local P-256 key', () => {
+  const keys = createVapidKeys();
+  const token = createVapidJwt(keys.privateJwk, { aud: 'https://push.example', sub: 'mailto:household@localhost', now: 1_700_000_000_000 });
+  assert.equal(verifyVapidJwt(token, keys.publicJwk), true);
+  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+  assert.equal(payload.aud, 'https://push.example');
+});
+
+test('push delivery sends once per pending reminder and drops gone endpoints', async () => {
+  const { dir, store } = fresh();
+  const calls = [];
+  const fetchImpl = async (url, opts) => {
+    calls.push({ url, auth: opts.headers.Authorization });
+    if (url.endsWith('/gone')) return { ok: false, status: 410 };
+    return { ok: true, status: 201 };
+  };
+  await store.create(item);
+  assert.equal(store.notifications()[0].pushed_at, null);
+  const none = await store.deliverPushes({ fetchImpl });
+  assert.equal(none.sent, 0);
+  store.savePushSubscription({ endpoint: 'https://push.example/ok', keys: { p256dh: 'dGVzdA', auth: 'YXV0aA' } });
+  store.savePushSubscription({ endpoint: 'https://push.example/gone', keys: { p256dh: 'dGVzdA', auth: 'YXV0aA' } });
+  const first = await store.deliverPushes({ fetchImpl });
+  assert.equal(first.sent, 1);
+  assert.equal(first.gone, 1);
+  assert.ok(store.notifications()[0].pushed_at);
+  const second = await store.deliverPushes({ fetchImpl });
+  assert.equal(second.sent, 0);
+  assert.equal(calls.filter(c => c.url === 'https://push.example/ok').length, 1);
+  assert.match(calls[0].auth, /^vapid t=.+, k=.+/);
+  store.close();
+  rmSync(dir, { recursive: true });
+});
+
+test('push subscribe endpoint stores a subscription', async () => {
+  const { dir, store } = fresh();
+  const server = app(store, { fetchImpl: async () => ({ ok: true, status: 201 }) });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const key = await fetch(`http://127.0.0.1:${port}/api/push/key`).then(r => r.json());
+  assert.ok(key.publicKey);
+  const saved = await fetch(`http://127.0.0.1:${port}/api/push/subscribe`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ endpoint: 'https://push.example/device', keys: { p256dh: 'dGVzdA', auth: 'YXV0aA' } }) }).then(r => r.json());
+  assert.equal(saved.endpoint, 'https://push.example/device');
   server.close();
   store.close();
   rmSync(dir, { recursive: true });
