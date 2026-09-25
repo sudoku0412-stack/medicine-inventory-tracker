@@ -1,13 +1,13 @@
 import { createServer } from 'node:http';
 import { readFile, stat, mkdir, writeFile, unlink } from 'node:fs/promises';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { randomUUID } from 'node:crypto';
+import { createPrivateKey, createPublicKey, generateKeyPairSync, randomUUID, sign, verify } from 'node:crypto';
 
 const root = dirname(fileURLToPath(import.meta.url));
-const publicAssets = new Set(['/', '/index.html', '/app.js', '/styles.css']);
+const publicAssets = new Set(['/', '/index.html', '/app.js', '/styles.css', '/sw.js']);
 const forms = new Set(['Tablets', 'Capsules', 'Syrup', 'Cream', 'Other']);
 const units = new Set(['tablets', 'capsules', 'bottles', 'tubes', 'sachets', 'ml', 'units']);
 const photoMimes = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
@@ -31,6 +31,65 @@ export function statusFor(batch, today = todayISO()) {
   if (batch.expiry_date < today) return 'expired';
   if (batch.expiry_date <= endISO) return 'expiring';
   return batch.quantity <= batch.low_stock_threshold ? 'low' : 'healthy';
+}
+
+export function jwkToUncompressedBase64Url(jwk) {
+  const x = Buffer.from(jwk.x, 'base64url');
+  const y = Buffer.from(jwk.y, 'base64url');
+  if (x.length !== 32 || y.length !== 32) throw new Error('Invalid P-256 public key.');
+  return Buffer.concat([Buffer.from([0x04]), x, y]).toString('base64url');
+}
+
+export function createVapidKeys() {
+  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const publicJwk = publicKey.export({ format: 'jwk' });
+  const privateJwk = privateKey.export({ format: 'jwk' });
+  return { publicJwk, privateJwk, publicKey: jwkToUncompressedBase64Url(publicJwk) };
+}
+
+export function loadVapidKeys(file) {
+  if (existsSync(file)) {
+    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    if (saved?.privateJwk && saved?.publicJwk && saved?.publicKey) return saved;
+  }
+  const keys = createVapidKeys();
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(keys));
+  return keys;
+}
+
+export function createVapidJwt(privateJwk, { aud, sub, now = Date.now() } = {}) {
+  if (!aud || !sub) throw new Error('VAPID token needs audience and subject.');
+  const header = Buffer.from(JSON.stringify({ typ: 'JWT', alg: 'ES256' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ aud, exp: Math.floor(now / 1000) + 12 * 3600, sub })).toString('base64url');
+  const data = `${header}.${payload}`;
+  const key = createPrivateKey({ key: privateJwk, format: 'jwk' });
+  const sig = sign('sha256', Buffer.from(data), { key, dsaEncoding: 'ieee-p1363' });
+  return `${data}.${sig.toString('base64url')}`;
+}
+
+export function verifyVapidJwt(token, publicJwk) {
+  const [header, payload, signature] = String(token || '').split('.');
+  if (!header || !payload || !signature) return false;
+  const key = createPublicKey({ key: publicJwk, format: 'jwk' });
+  return verify('sha256', Buffer.from(`${header}.${payload}`), { key, dsaEncoding: 'ieee-p1363' }, Buffer.from(signature, 'base64url'));
+}
+
+function endpointAllowed(endpoint) {
+  let url;
+  try { url = new URL(endpoint); } catch { return false; }
+  if (url.protocol === 'https:') return true;
+  return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost');
+}
+
+export async function sendPush(endpoint, vapid, { fetchImpl = fetch, contact = 'mailto:household@localhost' } = {}) {
+  if (!endpointAllowed(endpoint)) throw Object.assign(new Error('Push endpoint must be HTTPS (or localhost).'), { status: 400 });
+  const url = new URL(endpoint);
+  const jwt = createVapidJwt(vapid.privateJwk, { aud: `${url.protocol}//${url.host}`, sub: contact });
+  return fetchImpl(endpoint, {
+    method: 'POST',
+    headers: { TTL: '86400', Authorization: `vapid t=${jwt}, k=${vapid.publicKey}` }
+  });
 }
 
 export function parseDataUrl(dataUrl) {
@@ -182,11 +241,15 @@ export function createStore(path = join(root, 'data', 'inventory.sqlite'), clock
   const dataDir = dirname(path);
   const photoDir = join(dataDir, 'photos');
   mkdirSync(dataDir, { recursive: true });
+  const vapid = loadVapidKeys(join(dataDir, 'vapid.json'));
   const db = new DatabaseSync(path); db.exec(`PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY,name TEXT NOT NULL,strength TEXT NOT NULL DEFAULT '',form TEXT NOT NULL,quantity INTEGER NOT NULL CHECK(quantity >= 0),unit TEXT NOT NULL,expiry_date TEXT,location TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',low_stock_threshold INTEGER NOT NULL DEFAULT 4 CHECK(low_stock_threshold >= 0),created_at TEXT NOT NULL,updated_at TEXT NOT NULL,discarded_at TEXT);
-    CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY,batch_id TEXT NOT NULL REFERENCES batches(id),kind TEXT NOT NULL,trigger_date TEXT NOT NULL,read_at TEXT,created_at TEXT NOT NULL,UNIQUE(batch_id,kind,trigger_date));`);
+    CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY,batch_id TEXT NOT NULL REFERENCES batches(id),kind TEXT NOT NULL,trigger_date TEXT NOT NULL,read_at TEXT,created_at TEXT NOT NULL,UNIQUE(batch_id,kind,trigger_date));
+    CREATE TABLE IF NOT EXISTS push_subscriptions (endpoint TEXT PRIMARY KEY,p256dh TEXT NOT NULL,auth TEXT NOT NULL,created_at TEXT NOT NULL);`);
   const columns = db.prepare('PRAGMA table_info(batches)').all().map(c => c.name);
   if (!columns.includes('photo_path')) db.exec('ALTER TABLE batches ADD COLUMN photo_path TEXT');
+  const noteCols = db.prepare('PRAGMA table_info(notifications)').all().map(c => c.name);
+  if (!noteCols.includes('pushed_at')) db.exec('ALTER TABLE notifications ADD COLUMN pushed_at TEXT');
   const now = () => clock().toISOString();
   function reminders() {
     const today = todayISO(clock());
@@ -223,6 +286,7 @@ export function createStore(path = join(root, 'data', 'inventory.sqlite'), clock
   return {
     db,
     dataDir,
+    vapid,
     close: () => db.close(),
     list() {
       reminders();
@@ -295,6 +359,44 @@ export function createStore(path = join(root, 'data', 'inventory.sqlite'), clock
     read(id) {
       const r = db.prepare('UPDATE notifications SET read_at=? WHERE id=?').run(now(), id);
       if (!r.changes) throw Object.assign(new Error('Notification not found.'), { status: 404 });
+    },
+    savePushSubscription(data) {
+      const endpoint = text(data.endpoint, 2000);
+      const p256dh = text(data.keys?.p256dh || data.p256dh, 200);
+      const auth = text(data.keys?.auth || data.auth, 200);
+      if (!endpointAllowed(endpoint) || !p256dh || !auth) throw Object.assign(new Error('Invalid push subscription.'), { status: 400 });
+      db.prepare('INSERT INTO push_subscriptions (endpoint,p256dh,auth,created_at) VALUES (?,?,?,?) ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth').run(endpoint, p256dh, auth, now());
+      return { endpoint };
+    },
+    removePushSubscription(endpoint) {
+      db.prepare('DELETE FROM push_subscriptions WHERE endpoint=?').run(text(endpoint, 2000));
+    },
+    async deliverPushes({ fetchImpl = fetch, contact = process.env.PUSH_CONTACT || 'mailto:household@localhost' } = {}) {
+      reminders();
+      const pending = db.prepare('SELECT id FROM notifications WHERE pushed_at IS NULL').all();
+      const subs = db.prepare('SELECT endpoint FROM push_subscriptions').all();
+      if (!pending.length || !subs.length) return { sent: 0, gone: 0 };
+      let sent = 0, gone = 0;
+      for (const sub of subs) {
+        try {
+          const res = await sendPush(sub.endpoint, vapid, { fetchImpl, contact });
+          if (res.status === 404 || res.status === 410) {
+            this.removePushSubscription(sub.endpoint);
+            gone += 1;
+            continue;
+          }
+          if (!res.ok) continue;
+          sent += 1;
+        } catch {
+          continue;
+        }
+      }
+      if (sent) {
+        const stamp = now();
+        const mark = db.prepare('UPDATE notifications SET pushed_at=? WHERE id=? AND pushed_at IS NULL');
+        pending.forEach(n => mark.run(stamp, n.id));
+      }
+      return { sent, gone };
     }
   };
 }
@@ -302,7 +404,7 @@ export function createStore(path = join(root, 'data', 'inventory.sqlite'), clock
 const json = (res, code, data) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }); res.end(data === undefined ? '' : JSON.stringify(data)); };
 const photoTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
 
-export function app(store = createStore(), { suggest = suggestFromPhoto, env = process.env } = {}) {
+export function app(store = createStore(), { suggest = suggestFromPhoto, env = process.env, fetchImpl = fetch } = {}) {
   return createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost');
@@ -328,8 +430,16 @@ export function app(store = createStore(), { suggest = suggestFromPhoto, env = p
         const payload = await body();
         return json(res, 200, await suggest(payload.photo, { env }));
       }
-      if (req.method === 'POST' && url.pathname === '/api/batches') return json(res, 201, await store.create(await body()));
-      if (match && req.method === 'PATCH' && !match[2]) return json(res, 200, await store.update(match[1], await body()));
+      if (req.method === 'POST' && url.pathname === '/api/batches') {
+        const created = await store.create(await body());
+        await store.deliverPushes({ fetchImpl });
+        return json(res, 201, created);
+      }
+      if (match && req.method === 'PATCH' && !match[2]) {
+        const updated = await store.update(match[1], await body());
+        await store.deliverPushes({ fetchImpl });
+        return json(res, 200, updated);
+      }
       if (match && req.method === 'POST' && match[2] === 'consume') return json(res, 200, store.consume(match[1], (await body()).amount));
       if (match && req.method === 'POST' && match[2] === 'discard') { await store.discard(match[1]); return json(res, 204, {}); }
       if (match && req.method === 'GET' && match[2] === 'photo') {
@@ -342,6 +452,16 @@ export function app(store = createStore(), { suggest = suggestFromPhoto, env = p
       if (req.method === 'POST' && url.pathname === '/api/notifications/read-all') { store.readAll(); return json(res, 204, {}); }
       const n = url.pathname.match(new RegExp('^/api/notifications/([^/]+)/read$'));
       if (n && req.method === 'POST') { store.read(n[1]); return json(res, 204, {}); }
+      if (req.method === 'GET' && url.pathname === '/api/push/key') return json(res, 200, { publicKey: store.vapid.publicKey });
+      if (req.method === 'POST' && url.pathname === '/api/push/subscribe') {
+        const saved = store.savePushSubscription(await body());
+        await store.deliverPushes({ fetchImpl });
+        return json(res, 201, saved);
+      }
+      if (req.method === 'POST' && url.pathname === '/api/push/unsubscribe') {
+        store.removePushSubscription((await body()).endpoint);
+        return json(res, 204, {});
+      }
       if (req.method === 'GET') {
         const file = resolve(root, url.pathname === '/' ? 'index.html' : '.' + url.pathname);
         if (!file.startsWith(root)) return json(res, 404, { error: 'Not found' });
@@ -360,5 +480,13 @@ export function app(store = createStore(), { suggest = suggestFromPhoto, env = p
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const host = process.env.HOST || '127.0.0.1';
   const port = process.env.PORT || 3000;
-  app().listen(port, host, () => console.log(`Medicine Tracker on http://${host}:${port}`));
+  const store = createStore();
+  const server = app(store);
+  const tick = () => store.deliverPushes().catch(err => console.error('Push delivery failed:', err.message));
+  server.listen(port, host, () => {
+    console.log(`Medicine Tracker on http://${host}:${port}`);
+    tick();
+    const ms = Number(process.env.PUSH_INTERVAL_MS) || 15 * 60 * 1000;
+    setInterval(tick, ms);
+  });
 }
