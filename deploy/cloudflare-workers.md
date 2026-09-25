@@ -52,7 +52,7 @@ npx wrangler secret put ACCESS_AUD
 
 Use your Access team URL (for example `https://<team>.cloudflareaccess.com`) and the application **Audience** tag from the Access app for this hostname.
 
-6. Attach the custom domain in the Cloudflare dashboard if Wrangler has not already linked `medicineinventory.craftloop.ca`.
+7. Attach the custom domain in the Cloudflare dashboard if Wrangler has not already linked `medicineinventory.craftloop.ca`.
 
 ## Deploy
 
@@ -81,4 +81,4 @@ Open **https://medicineinventory.craftloop.ca** on your phone, sign in with Acce
 
 - **401 Sign in through Cloudflare Access:** set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` secrets and complete Access login in the browser.
 - **Vision false / no Gemini suggestions:** set `GEMINI_API_KEY` secret and redeploy.
-- **Camera blocked:** use HTTPS URL (not IP), allow camera for the site in phone settings.
+- **R2 error 10042:** enable R2 in the Cloudflare dashboard first, then create the bucket again.
