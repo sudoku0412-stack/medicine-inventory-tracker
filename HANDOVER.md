@@ -3,28 +3,30 @@
 ## Current state
 
 - Product: Medicine Inventory Tracker, household-first responsive web app. Future iOS/Android clients and general store inventory are long-term goals.
-- Repository: https://github.com/sudoku0412-stack/medicine-inventory-tracker (public), main branch.
-- Phase 1 remains on main (implementation 1606a91, merge eb2e5c2).
-- Phase 2 item 1 (blank Monthly cabinet check button) is implemented on branch `cursor/cabinet-check-button-65d1`.
+- Repository: https://github.com/sudoku0412-stack/medicine-inventory-tracker (public).
+- Phase 1 is on main. Phase 2 item 1 (cabinet check button) is merged to main via PR #1.
+- Phase 2 item 2 is on `cursor/packaging-photo-suggest-94f5` (PR #2): packaging photos plus optional vision suggestions that require user confirmation.
 - Stack: plain HTML/CSS/JavaScript, Node 26+ HTTP API, built-in SQLite. No third-party runtime dependencies. Run npm start; open http://127.0.0.1:3000. Run npm test.
-- Local data: data/inventory.sqlite, excluded from Git. Do not overwrite user inventory.
+- Local data: `data/inventory.sqlite` and `data/photos/`, excluded from Git. Do not overwrite user inventory.
 
 ## Delivered behavior and limits
 
 - Manual batch creation/editing, quantity/unit and low-stock threshold, expiry/unknown expiry, location/notes, consume/discard, dashboard, search/status filters, responsive layouts, persistent in-app expiry reminders and read state.
+- Optional packaging photos (JPEG/PNG/WebP, 2 MB, real image signatures). Photos persist only after save and are removed on discard.
+- AI name/expiry suggestions run only when `VISION_API_KEY` is set (OpenAI-compatible URL/model optional). One call per photo, 20s timeout. Invalid or incomplete dates stay blank. Saving the form is confirmation. Manual entry always remains.
 - Expiry and reminder rules use date-only calendar arithmetic with a 30-day warning window. Same medicine may have multiple batches.
 - Local single-user application, no authentication. Default bind is 127.0.0.1. Static assets use an explicit allowlist.
-- Notifications are IN-APP ONLY. No email/push delivery or background external notification service is implemented.
-- Tests cover persistence, validation/overdraw, edit/discard, date boundaries and reminder deduplication/read/stale cleanup.
+- Notifications are still IN-APP ONLY until item 3. No email/push delivery while the app is closed.
+- Tests cover persistence, validation/overdraw, edit/discard, date boundaries, reminder deduplication/read/stale cleanup, suggestion parsing, photo storage, and mocked suggest HTTP.
 
 ## Phase 2 progress
 
-1. **Done — Monthly cabinet check button.** Root cause: the control sat on the dark `.reminder-card` with inherited white text, so a white `.button.secondary` looked blank. Clicking it used `data-view`, which was easy to confuse with Home on mobile. Fix: `.button.light` plus explicit deep text/`-webkit-text-fill-color`, full-width placement on mid-size layouts, and `#reviewCabinetBtn` navigating to Inventory (all filter), not Dashboard.
-2. **Not started — packaging photos / AI suggest name and expiry.** Still blocked on provider, credentials, cost controls, image retention, and date-handling decisions. Manual entry stays available when this is built.
+1. **Done — Monthly cabinet check button.** Root cause: white inherited text on a white `.button.secondary` inside the dark reminder card. Fix is on main.
+2. **Done — packaging photos / AI suggest name and expiry.** Implemented with the decisions above. No provider credentials are stored in the repo; without a key, photos still attach and the user types name and expiry.
 3. **Not started — real expiry delivery (email or web push)** while the app is closed. No service credentials or deployment target selected.
 
 Household sharing and commercial store features remain later phases. Preserve the approved UI unless the user requests changes.
 
 ## Working agreement
 
-User asked this chat not to follow AGENTS.md specialist delegation. Continue from this file on the next session; do not re-fix item 1 unless a regression is found.
+Do not launch Cursor cloud agents for this project; implement and review in this session. Do not re-fix item 1 unless a regression is found. Next: item 3, expiry alerts when the app is closed.
