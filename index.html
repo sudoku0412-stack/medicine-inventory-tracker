@@ -191,7 +191,7 @@
     </div>
 
     <dialog class="modal" id="addMedicineModal" aria-labelledby="addMedicineTitle">
-      <form id="addMedicineForm" novalidate>
+      <form id="addMedicineForm" novalidate autocomplete="off">
         <div class="modal-header"><div><span class="overline">NEW ITEM</span><h2 id="addMedicineTitle">Add medicine</h2></div><button class="modal-close" type="button" data-close-modal aria-label="Close add medicine dialog">×</button></div>
         <div class="modal-body">
           <div class="packaging-scan">
@@ -207,21 +207,21 @@
               <p id="packagingSuggestStatus" role="status"></p>
             </div>
           </div>
-          <label class="form-field full"><span>Medicine name <em>*</em></span><input id="medicineName" name="name" type="text" placeholder="e.g. Paracetamol" required /><small class="field-error"></small></label>
+          <label class="form-field full"><span>Medicine name <em>*</em></span><input id="medicineName" name="name" type="text" placeholder="e.g. Paracetamol" required autocomplete="off" /><small class="field-error"></small></label>
           <div class="form-row">
-            <label class="form-field"><span>Strength</span><input name="strength" type="text" placeholder="e.g. 500 mg" /></label>
-            <label class="form-field"><span>Form</span><select name="form"><option>Tablets</option><option>Capsules</option><option>Syrup</option><option>Cream</option><option>Other</option></select></label>
+            <label class="form-field"><span>Strength</span><input name="strength" type="text" placeholder="e.g. 500 mg" autocomplete="off" /></label>
+            <label class="form-field"><span>Form</span><select name="form" autocomplete="off"><option>Tablets</option><option>Capsules</option><option>Syrup</option><option>Cream</option><option>Other</option></select></label>
           </div>
           <div class="form-row">
-            <label class="form-field"><span>Quantity <em>*</em></span><input name="quantity" type="number" min="1" placeholder="e.g. 20" required /><small class="field-error"></small></label>
-            <label class="form-field"><span>Expiry date</span><input name="expiry" type="date" /></label>
+            <label class="form-field"><span>Quantity <em>*</em></span><input name="quantity" type="number" min="1" placeholder="e.g. 20" required autocomplete="off" /><small class="field-error"></small></label>
+            <label class="form-field"><span>Expiry date</span><input name="expiry" type="date" autocomplete="off" /></label>
           </div>
           <div class="form-row">
-            <label class="form-field"><span>Unit <em>*</em></span><select name="unit"><option value="tablets">Tablets</option><option value="capsules">Capsules</option><option value="bottles">Bottles</option><option value="tubes">Tubes</option><option value="sachets">Sachets</option><option value="ml">mL</option><option value="units">Units</option></select></label>
-            <label class="form-field"><span>Low-stock alert</span><input name="low_stock_threshold" type="number" min="0" value="4" /></label>
+            <label class="form-field"><span>Unit <em>*</em></span><select name="unit" autocomplete="off"><option value="tablets">Tablets</option><option value="capsules">Capsules</option><option value="bottles">Bottles</option><option value="tubes">Tubes</option><option value="sachets">Sachets</option><option value="ml">mL</option><option value="units">Units</option></select></label>
+            <label class="form-field"><span>Low-stock alert</span><input name="low_stock_threshold" type="number" min="0" value="4" autocomplete="off" /></label>
           </div>
-          <label class="form-field full"><span>Storage location</span><select name="location"><option>Medicine cabinet</option><option>Bathroom cabinet</option><option>Kitchen drawer</option><option>Refrigerator</option><option>First aid kit</option></select></label>
-          <label class="form-field full"><span>Notes</span><textarea name="notes" rows="3" placeholder="Optional dosage or household note"></textarea></label>
+          <label class="form-field full"><span>Storage location</span><select name="location" autocomplete="off"><option>Medicine cabinet</option><option>Bathroom cabinet</option><option>Kitchen drawer</option><option>Refrigerator</option><option>First aid kit</option></select></label>
+          <label class="form-field full"><span>Notes</span><textarea name="notes" rows="3" placeholder="Optional dosage or household note" autocomplete="off"></textarea></label>
         </div>
         <div class="modal-footer"><button class="button secondary" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit">Add to inventory</button></div>
       </form>
@@ -237,7 +237,7 @@
         </dl>
         <div class="quantity-stepper" id="consumeControl">
           <label for="consumeAmount">How many did you use?</label>
-          <div><button type="button" data-step="-1" aria-label="Decrease quantity to use">−</button><input id="consumeAmount" type="number" min="1" value="1" /><button type="button" data-step="1" aria-label="Increase quantity to use">＋</button></div>
+          <div><button type="button" data-step="-1" aria-label="Decrease quantity to use">−</button><input id="consumeAmount" name="consume-amount" type="number" min="1" value="1" autocomplete="off" /><button type="button" data-step="1" aria-label="Increase quantity to use">＋</button></div>
         </div>
       </div>
       <div class="modal-footer split"><button class="button danger-button" id="discardBatch" type="button">Discard batch</button><span><button class="button secondary" id="editBatch" type="button">Edit</button> <button class="button primary" id="consumeBatch" type="button">Mark as used</button></span></div>

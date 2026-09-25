@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createStore, statusFor, suggestionFromModel, parseModelJson, parseDataUrl, MAX_PHOTO_BYTES, app, suggestFromPhoto, createVapidKeys, createVapidJwt, verifyVapidJwt } from '../server.js';
 
 const fixed = () => new Date('2028-02-01T12:00:00Z');
@@ -212,4 +214,10 @@ test('push subscribe endpoint stores a subscription', async () => {
   server.close();
   store.close();
   rmSync(dir, { recursive: true });
+});
+
+test('app.js parses', () => {
+  const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'app.js');
+  const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
 });
