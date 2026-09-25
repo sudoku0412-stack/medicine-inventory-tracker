@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createStore, statusFor, suggestionFromModel, parseModelJson, parseDataUrl, MAX_PHOTO_BYTES, app, createVapidKeys, createVapidJwt, verifyVapidJwt } from '../server.js';
+import { createStore, statusFor, suggestionFromModel, parseModelJson, parseDataUrl, MAX_PHOTO_BYTES, app, suggestFromPhoto, createVapidKeys, createVapidJwt, verifyVapidJwt } from '../server.js';
 
 const fixed = () => new Date('2028-02-01T12:00:00Z');
 function fresh() {
@@ -86,7 +86,7 @@ test('suggestion parser requires a full calendar date and keeps unreadable value
   const offline = suggestionFromModel({}, false);
   assert.equal(offline.vision, false);
   assert.equal(offline.needs_manual, true);
-  assert.match(offline.message, /VISION_API_KEY/);
+  assert.match(offline.message, /Gemini API key/);
 });
 
 test('stores a packaging photo on create and removes it on discard', async () => {
@@ -119,7 +119,7 @@ test('suggest endpoint never auto-saves and uses one mocked vision call', async 
     calls += 1;
     return suggestionFromModel({ name: 'Cetirizine', expiry_date: '2029-08-15' }, true);
   };
-  const server = app(store, { suggest, env: { VISION_API_KEY: 'test-key' } });
+  const server = app(store, { suggest, env: { GEMINI_API_KEY: 'test-key' } });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address();
   const status = await fetch(`http://127.0.0.1:${port}/api/packaging/status`).then(r => r.json());
@@ -146,6 +146,24 @@ test('suggest endpoint never auto-saves and uses one mocked vision call', async 
   server.close();
   store.close();
   rmSync(dir, { recursive: true });
+});
+
+test('Gemini vision request uses generateContent and parses candidate JSON', async () => {
+  let captured;
+  const fetchImpl = async (url, opts) => {
+    captured = { url, headers: opts.headers, body: JSON.parse(opts.body) };
+    return {
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: '{"name":"Dolo 650","expiry_date":"2029-01-31","expiry_ambiguous":false}' }] } }] })
+    };
+  };
+  const result = await suggestFromPhoto(tinyJpeg, { env: { GEMINI_API_KEY: 'g-test' }, fetchImpl });
+  assert.match(captured.url, /gemini-flash-latest:generateContent$/);
+  assert.equal(captured.headers['x-goog-api-key'], 'g-test');
+  assert.equal(captured.body.contents[0].parts[1].inlineData.mimeType, 'image/jpeg');
+  assert.equal(result.name, 'Dolo 650');
+  assert.equal(result.expiry_date, '2029-01-31');
+  assert.equal(result.needs_manual, false);
 });
 
 test('VAPID JWT signs with the local P-256 key', () => {
