@@ -26,7 +26,7 @@ Binding `HOST` to a non-loopback address exposes an unauthenticated application 
 
 ## Packaging photos
 
-Add or edit a batch with an optional JPEG, PNG, or WebP photo (2 MB max). The photo is kept only after you save the batch. Manual name, quantity, and expiry entry always remain available.
+Add or edit a batch with an optional JPEG, PNG, or WebP photo (2 MB max). Take photo opens the device camera in the browser on localhost or HTTPS (Chrome will ask for permission). Desktop Chrome does not open the camera from a file-picker `capture` attribute, so this uses a live preview instead. Upload photo still uses the file picker. The photo is kept only after you save the batch. Manual name, quantity, and expiry entry always remain available.
 
 If `GEMINI_API_KEY` or `VISION_API_KEY` is set, or `data/gemini.key` exists, one Gemini vision request can suggest a medicine name and a complete `YYYY-MM-DD` expiry. Incomplete or unreadable dates are left blank so you type them. Suggestions never create a batch on their own; saving the form is the confirmation step.
 
