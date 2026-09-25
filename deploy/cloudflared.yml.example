@@ -1,10 +1,10 @@
 # Copy to deploy/cloudflared.yml (gitignored) or ~/.cloudflared/config.yml
-# Replace the tunnel id, credentials path, and hostname.
+# Replace YOUR_TUNNEL_ID and the credentials path (Kaushik Mac path shown).
 
 tunnel: YOUR_TUNNEL_ID
-credentials-file: /Users/YOU/.cloudflared/YOUR_TUNNEL_ID.json
+credentials-file: /Users/kaushiksudesna/.cloudflared/YOUR_TUNNEL_ID.json
 
 ingress:
-  - hostname: tracker.example.com
+  - hostname: medicineinventory.craftloop.ca
     service: http://127.0.0.1:3000
   - service: http_status:404

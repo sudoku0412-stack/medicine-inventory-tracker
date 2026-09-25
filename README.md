@@ -57,7 +57,7 @@ This is not email. Alerts require this computer’s Node process and a browser t
 
 Cloudflare Pages/Workers cannot host this app. Use a **Cloudflare Tunnel** to `http://127.0.0.1:3000` plus **Cloudflare Access** so the phone can open HTTPS and use the camera without publishing an unauthenticated cabinet.
 
-Keep `npm start` and `cloudflared` running on the same machine. Step-by-step: `deploy/cloudflare.md`.
+Keep `npm start` and `cloudflared` running on the same machine. Step-by-step: `deploy/cloudflare.md` (hostname **`medicineinventory.craftloop.ca`**).
 
 Optional origin checks (set in gitignored `.env`; loaded when you run `npm start`):
 

@@ -26,7 +26,7 @@
 
 ## Phase 3 progress
 
-1. **In progress — HTTPS domain + phone camera.** Tunnel/Access docs, example `cloudflared` config, optional `ACCESS_TEAM_DOMAIN` + `ACCESS_AUD` JWT check on the Node origin. Inventory stays in local SQLite. The Mac must keep Node and the tunnel running.
+1. **In progress — HTTPS domain + phone camera.** Target URL **`https://medicineinventory.craftloop.ca`** via Tunnel/Access (`deploy/cloudflare.md`). Optional `ACCESS_TEAM_DOMAIN` + `ACCESS_AUD` JWT check on the Node origin. Inventory stays in local SQLite. The Mac must keep Node and the tunnel running.
 2. **Not started — always-on host.** Moving Node off a sleeping laptop.
 3. **Not started — Cloudflare Pages/Workers rewrite.** Out of scope; D1/R2 would replace SQLite and photos.
 
