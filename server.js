@@ -11,6 +11,12 @@ const publicAssets = new Set(['/', '/index.html', '/app.js', '/styles.css']);
 const forms = new Set(['Tablets', 'Capsules', 'Syrup', 'Cream', 'Other']);
 const units = new Set(['tablets', 'capsules', 'bottles', 'tubes', 'sachets', 'ml', 'units']);
 const photoMimes = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
+function looksLikeImage(buffer, mime) {
+  if (mime === 'image/jpeg') return buffer.length > 2 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  if (mime === 'image/png') return buffer.length > 7 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47 && buffer[4] === 0x0d && buffer[5] === 0x0a && buffer[6] === 0x1a && buffer[7] === 0x0a;
+  if (mime === 'image/webp') return buffer.length > 11 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP';
+  return false;
+}
 export const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 const MAX_JSON_BYTES = 3 * 1024 * 1024;
 const text = (value, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -33,6 +39,7 @@ export function parseDataUrl(dataUrl) {
   const buffer = Buffer.from(match[2], 'base64');
   if (!buffer.length) throw Object.assign(new Error('Photo data was empty.'), { status: 400 });
   if (buffer.length > MAX_PHOTO_BYTES) throw Object.assign(new Error('Packaging photos must be 2 MB or smaller.'), { status: 413 });
+  if (!looksLikeImage(buffer, match[1])) throw Object.assign(new Error('Upload a JPEG, PNG, or WebP packaging photo.'), { status: 400 });
   return { mime: match[1], buffer, ext: photoMimes[match[1]] };
 }
 
@@ -275,7 +282,7 @@ export function app(store = createStore(), { suggest = suggestFromPhoto, env = p
       if (match && req.method === 'GET' && match[2] === 'photo') {
         const file = store.photoFile(match[1]);
         if (!file) return json(res, 404, { error: 'Photo not found' });
-        res.writeHead(200, { 'content-type': photoTypes[extname(file)] || 'application/octet-stream', 'cache-control': 'private, max-age=3600' });
+        res.writeHead(200, { 'content-type': photoTypes[extname(file)] || 'application/octet-stream', 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' });
         return res.end(await readFile(file));
       }
       if (req.method === 'GET' && url.pathname === '/api/notifications') return json(res, 200, store.notifications());

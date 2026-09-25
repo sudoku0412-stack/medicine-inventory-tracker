@@ -105,6 +105,9 @@ test('stores a packaging photo on create and removes it on discard', async () =>
 
 test('rejects oversized or invalid packaging photos', () => {
   assert.throws(() => parseDataUrl('data:image/gif;base64,AAAA'), /JPEG, PNG, or WebP/);
+  assert.throws(() => parseDataUrl('data:image/jpeg;base64,SGVsbG8='), /JPEG, PNG, or WebP/);
+  const parsed = parseDataUrl(tinyJpeg);
+  assert.equal(parsed.mime, 'image/jpeg');
   const oversized = `data:image/png;base64,${'A'.repeat(Math.ceil((MAX_PHOTO_BYTES + 8) * 4 / 3))}`;
   assert.throws(() => parseDataUrl(oversized), /2 MB/);
 });
@@ -139,6 +142,7 @@ test('suggest endpoint never auto-saves and uses one mocked vision call', async 
   const photo = await fetch(`http://127.0.0.1:${port}/api/batches/${created.id}/photo`);
   assert.equal(photo.status, 200);
   assert.match(photo.headers.get('content-type'), /image\/jpeg/);
+  assert.equal(photo.headers.get('x-content-type-options'), 'nosniff');
   server.close();
   store.close();
   rmSync(dir, { recursive: true });
