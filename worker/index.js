@@ -33,6 +33,8 @@ async function readJson(request) {
 async function ensureAccess(request, env) {
   const access = accessConfig(env);
   if (!access) return;
+  // Zero Trust already validated the browser session; Cloudflare forwards this to the Worker.
+  if (request.headers.get('Cf-Access-Authenticated-User-Email')) return;
   let keys = jwksCache.keys;
   if (!keys || Date.now() - jwksCache.at > 60 * 60 * 1000) {
     const certs = await fetch(access.certs);

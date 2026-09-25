@@ -18,7 +18,9 @@ npm install
 npx wrangler login
 ```
 
-2. Create resources (once):
+2. **Enable R2** in the Cloudflare dashboard (same account as Workers): open **R2** in the left sidebar and accept setup (Workers Free includes a small R2 allowance; billing may ask for a payment method even if usage stays free). Error `10042` means R2 is not enabled yet.
+
+3. Create resources (once):
 
 ```sh
 npx wrangler d1 create medicine-inventory
@@ -26,15 +28,21 @@ npx wrangler r2 bucket create medicine-inventory-photos
 npx wrangler kv namespace create medicine-inventory-kv
 ```
 
-3. Copy the **D1 database id** and **KV namespace id** into `wrangler.toml` (replace placeholders if Wrangler did not fill them automatically).
+You already created D1 and KV. After R2 is enabled, run only:
 
-4. Apply the schema:
+```sh
+npx wrangler r2 bucket create medicine-inventory-photos
+```
+
+4. Confirm `wrangler.toml` has your **D1 database_id** and **KV id** (this repo pins the ids from your account).
+
+5. Apply the schema:
 
 ```sh
 npx wrangler d1 migrations apply medicine-inventory --remote
 ```
 
-5. Set secrets:
+6. Set secrets:
 
 ```sh
 npx wrangler secret put GEMINI_API_KEY
@@ -44,7 +52,7 @@ npx wrangler secret put ACCESS_AUD
 
 Use your Access team URL (for example `https://<team>.cloudflareaccess.com`) and the application **Audience** tag from the Access app for this hostname.
 
-6. Attach the custom domain in the Cloudflare dashboard if Wrangler has not already linked `medicineinventory.craftloop.ca`.
+7. Attach the custom domain in the Cloudflare dashboard if Wrangler has not already linked `medicineinventory.craftloop.ca`.
 
 ## Deploy
 
@@ -71,6 +79,7 @@ Open **https://medicineinventory.craftloop.ca** on your phone, sign in with Acce
 
 ## Troubleshooting
 
-- **401 Sign in through Cloudflare Access:** set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` secrets and complete Access login in the browser.
+- **401 Sign in through Cloudflare Access:** set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` secrets, or delete both secrets if Access already protects the hostname (the Worker trusts `Cf-Access-Authenticated-User-Email` from Zero Trust). Wrong `ACCESS_AUD` causes API 401 while the HTML still loads.
+- **Unable to load inventory / empty dashboard:** run `npx wrangler d1 migrations apply medicine-inventory --remote`, then check DevTools → Network → `/api/batches` (401 = Access secrets; 500 = D1/migrations).
 - **Vision false / no Gemini suggestions:** set `GEMINI_API_KEY` secret and redeploy.
-- **Camera blocked:** use HTTPS URL (not IP), allow camera for the site in phone settings.
+- **R2 error 10042:** enable R2 in the Cloudflare dashboard first, then create the bucket again.
