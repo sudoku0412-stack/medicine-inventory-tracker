@@ -9,6 +9,7 @@ import {
 } from '../lib/shared.js';
 import { createD1Store, loadVapid } from '../lib/store-d1.js';
 import { resolveTenant } from '../lib/tenants.js';
+import { createHouseholdInvitation, listHouseholdAccess, revokeHouseholdInvitation } from '../lib/household-access.js';
 
 const jwksCache = { at: 0, keys: null };
 
@@ -61,6 +62,13 @@ export async function handleRequest(request, env, ctx) {
       const principal = await ensureAccess(request, env);
       const tenant = await resolveTenant(env.DB, principal, env);
       if (request.method !== 'GET' && await migrationIsActive(env.DB)) return json({ error: 'Inventory is temporarily read-only while a migration is in progress.' }, 503);
+      const invitation = url.pathname.match(/^\/api\/household\/invitations\/([^/]+)$/);
+      if (request.method === 'GET' && url.pathname === '/api/household/access') return json(await listHouseholdAccess(env.DB, tenant));
+      if (request.method === 'POST' && url.pathname === '/api/household/invitations') return json(await createHouseholdInvitation(env.DB, tenant, await readJson(request)), 201);
+      if (invitation && request.method === 'DELETE') {
+        await revokeHouseholdInvitation(env.DB, tenant, invitation[1]);
+        return new Response(null, { status: 204 });
+      }
       const store = await getStore(env, tenant);
       const match = url.pathname.match(/^\/api\/batches\/([^/]+)(?:\/(consume|discard|photo))?$/);
       if (request.method === 'GET' && url.pathname === '/api/settings') return json(await store.settings());

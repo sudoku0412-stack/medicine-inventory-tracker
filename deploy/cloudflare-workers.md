@@ -83,7 +83,7 @@ Open **https://medicineinventory.craftloop.ca** on your phone, sign in with Acce
 ## Troubleshooting
 
 - **401 Sign in through Cloudflare Access:** confirm the signed assertion comes from the configured team domain and matches the application audience. The Worker validates this JWT and does not trust `Cf-Access-Authenticated-User-Email`. A missing or wrong audience causes API 401 while the HTML still loads.
-- **403 This account is not a member:** set `INITIAL_OWNER_EMAILS` before the first post-migration sign-in, then sign in once with one configured address. Do not add more people until household invitations are implemented.
+- **403 This account is not a member:** set `INITIAL_OWNER_EMAILS` before the first post-migration sign-in, then sign in once with one configured address. Existing invitations are pending records, not access grants, until a future acceptance flow is deployed.
 - **Unable to load inventory / empty dashboard:** run `npx wrangler d1 migrations apply medicine-inventory --remote`, then check DevTools → Network → `/api/batches` (401 = Access secrets; 500 = D1/migrations).
 - **Vision false / no Gemini suggestions:** set `GEMINI_API_KEY` secret and redeploy.
 - **R2 error 10042:** enable R2 in the Cloudflare dashboard first, then create the bucket again.
