@@ -79,6 +79,7 @@ Open **https://medicineinventory.craftloop.ca** on your phone, sign in with Acce
 
 ## Troubleshooting
 
-- **401 Sign in through Cloudflare Access:** set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` secrets and complete Access login in the browser.
+- **401 Sign in through Cloudflare Access:** set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` secrets, or delete both secrets if Access already protects the hostname (the Worker trusts `Cf-Access-Authenticated-User-Email` from Zero Trust). Wrong `ACCESS_AUD` causes API 401 while the HTML still loads.
+- **Unable to load inventory / empty dashboard:** run `npx wrangler d1 migrations apply medicine-inventory --remote`, then check DevTools → Network → `/api/batches` (401 = Access secrets; 500 = D1/migrations).
 - **Vision false / no Gemini suggestions:** set `GEMINI_API_KEY` secret and redeploy.
 - **R2 error 10042:** enable R2 in the Cloudflare dashboard first, then create the bucket again.
