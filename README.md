@@ -24,6 +24,10 @@ The SQLite database is created at `data/inventory.sqlite`; it is deliberately ex
 
 Binding `HOST` to a non-loopback address exposes an unauthenticated application and is unsafe unless access controls are provided externally.
 
+## Profile and household settings
+
+Profile & settings stores one local household profile: display name, household name, and the default storage location for new medicine batches. The defaults are **Kaushik**, **Kaushik’s home**, and **Medicine cabinet**. Settings are stored alongside the inventory in SQLite locally and in D1 in production; updating them never changes existing medicine records. On Cloudflare, apply the D1 migrations before deploying the Worker.
+
 ## Packaging photos
 
 Add or edit a batch with an optional JPEG, PNG, or WebP photo (2 MB max). Take photo opens the device camera in the browser on localhost or HTTPS (Chrome will ask for permission). Desktop Chrome does not open the camera from a file-picker `capture` attribute, so this uses a live preview instead. Upload photo still uses the file picker. The photo is kept only after you save the batch. Manual name, quantity, and expiry entry always remain available.

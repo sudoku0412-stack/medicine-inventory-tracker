@@ -58,6 +58,8 @@ export async function handleRequest(request, env, ctx) {
       await ensureAccess(request, env);
       const store = await getStore(env);
       const match = url.pathname.match(/^\/api\/batches\/([^/]+)(?:\/(consume|discard|photo))?$/);
+      if (request.method === 'GET' && url.pathname === '/api/settings') return json(await store.settings());
+      if (request.method === 'PATCH' && url.pathname === '/api/settings') return json(await store.updateSettings(await readJson(request)));
       if (request.method === 'GET' && url.pathname === '/api/batches') return json(await store.list());
       if (request.method === 'GET' && url.pathname === '/api/packaging/status') return json({ vision: Boolean(visionConfig(env)) });
       if (request.method === 'POST' && url.pathname === '/api/packaging/suggest') {
