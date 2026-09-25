@@ -58,6 +58,14 @@ Owner-only household administration is now implemented for Cloudflare/D1: `GET /
 
 Migration `0005_household_invitations.sql` was applied to production D1 and the reviewed Worker was deployed on 2026-09-25 as version `00a374f7-f760-462d-b46d-02df92b06416`; a follow-up migration check reports no pending migrations. **Next safe step:** test the owner flow in Cloudflare Access. A future, separately designed chunk may add invitation acceptance after it verifies the signed-in provider-and-subject identity. Do not add automatic enrollment, resends, role changes, or member removal to this chunk. Apple and Google remain Cloudflare Access identity-provider configuration; no client-side OAuth secrets are stored in the repository.
 
+## Phase 6 — invitation acceptance (implementation checkpoint, not deployed)
+
+- An isolated implementation worktree now adds `0006_household_invitation_expiration.sql`: existing invitations are backfilled to seven-day expiry, and new invitations store the same expiry. Apply this migration before deploying the accompanying Worker.
+- `GET /api/household/invitations/pending` and explicit `POST /api/household/invitations/:id/accept` authenticate a Cloudflare Access JWT before (and independently of) tenant resolution. Pending returns unexpired matching invitations plus a membership boolean solely so an existing member is never gated by an unrelated invite. Acceptance binds only the verified provider, subject, and normalized signed email; it never accepts an email, household, or role from the client.
+- Acceptance uses one D1 batch transaction with matching invitation predicates on every write. It consumes the invitation only after membership exists; identity uniqueness conflicts roll the whole batch back. Existing identities without memberships are reused; any existing membership is a 409 conflict. Bootstrap/legacy ownership is never invoked by these routes.
+- The browser gates cloud identities before loading normal inventory UI. It offers an accessible, explicit Accept action and terminal/retry states; local server behavior stays unchanged.
+- This checkpoint is uncommitted/unpushed by design for coordinator review. Tests include expiry, revocation, mismatch, duplicate/concurrent submits, conflict rollback, tenant isolation, existing identity reuse, and Worker JWT-route coverage.
+
 ## Working agreement
 
 Do not launch Cursor cloud agents for this project. Read this file at the start of a new chat. Do not re-fix completed Phase 2 items unless a regression is found.

@@ -9,7 +9,7 @@ import {
 } from '../lib/shared.js';
 import { createD1Store, loadVapid } from '../lib/store-d1.js';
 import { resolveTenant } from '../lib/tenants.js';
-import { createHouseholdInvitation, listHouseholdAccess, revokeHouseholdInvitation } from '../lib/household-access.js';
+import { acceptHouseholdInvitation, createHouseholdInvitation, listHouseholdAccess, pendingHouseholdInvitations, revokeHouseholdInvitation } from '../lib/household-access.js';
 
 const jwksCache = { at: 0, keys: null };
 
@@ -60,6 +60,13 @@ export async function handleRequest(request, env, ctx) {
   if (url.pathname.startsWith('/api/')) {
     try {
       const principal = await ensureAccess(request, env);
+      // Invitation discovery/acceptance deliberately runs before resolveTenant:
+      // an invited identity has no membership yet. Every other API remains
+      // membership-gated below.
+      const pendingInvitation = url.pathname === '/api/household/invitations/pending';
+      const invitationAcceptance = url.pathname.match(/^\/api\/household\/invitations\/([^/]+)\/accept$/);
+      if (request.method === 'GET' && pendingInvitation) return json(await pendingHouseholdInvitations(env.DB, principal));
+      if (request.method === 'POST' && invitationAcceptance) return json(await acceptHouseholdInvitation(env.DB, principal, invitationAcceptance[1]));
       const tenant = await resolveTenant(env.DB, principal, env);
       if (request.method !== 'GET' && await migrationIsActive(env.DB)) return json({ error: 'Inventory is temporarily read-only while a migration is in progress.' }, 503);
       const invitation = url.pathname.match(/^\/api\/household\/invitations\/([^/]+)$/);
