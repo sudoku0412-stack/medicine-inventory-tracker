@@ -13,6 +13,24 @@ import { acceptHouseholdInvitation, createHouseholdInvitation, listHouseholdAcce
 
 const jwksCache = { at: 0, keys: null };
 
+const bootstrapAssetPaths = new Set(['/index.html', '/app.js', '/styles.css', '/sw.js']);
+
+export function assetCacheControl(path) {
+  if (path === '/index.html') return 'no-store';
+  if (bootstrapAssetPaths.has(path)) return 'no-cache, must-revalidate';
+  if (/\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(path)) return 'public, max-age=31536000, immutable';
+  return null;
+}
+
+async function fetchAsset(request, env, assetPath) {
+  const response = await env.ASSETS.fetch(new URL(assetPath, request.url));
+  const cacheControl = assetCacheControl(assetPath);
+  if (!cacheControl) return response;
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', cacheControl);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 function json(data, status = 200) {
   return new Response(data === undefined ? null : JSON.stringify(data), {
     status,
@@ -143,7 +161,7 @@ export async function handleRequest(request, env, ctx) {
 
   if (request.method !== 'GET' || !publicAssetPaths.has(url.pathname)) return new Response('Not found', { status: 404 });
   const assetPath = url.pathname === '/' ? '/index.html' : url.pathname;
-  return env.ASSETS.fetch(new URL(assetPath, request.url));
+  return fetchAsset(request, env, assetPath);
 }
 
 export default {
