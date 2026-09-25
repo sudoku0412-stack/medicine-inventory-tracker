@@ -90,3 +90,11 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 
 - Profile & settings now includes an accessible **Sign out** link to the same-origin Cloudflare Access endpoint `/cdn-cgi/access/logout`. It does not add an application-side session or change Access/DNS configuration.
 - This ends the user's Cloudflare Access session, which Cloudflare documents as applying across Access-protected applications. Verify on the deployed custom domain after merge.
+
+## Production deployment follow-up (2026-09-25)
+
+- PR #19 (`e50bc03`) is merged to `main` and deployed to `medicineinventory.craftloop.ca`.
+- Cloudflare Worker version: `fbcecb56-1043-445f-bd29-a83680165c6c`.
+- D1 migration check reported **No migrations to apply**; no migrations were run.
+- Unauthenticated custom-domain verification returned HTTP 302 to the Cloudflare Access login endpoint. No Access or DNS configuration was changed.
+- Browser sign-out was not exercised because it requires a real authenticated user session.
