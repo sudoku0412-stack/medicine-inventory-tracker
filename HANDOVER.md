@@ -77,3 +77,11 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - Tests: added `test/worker-assets.test.js` for shell/bootstrap policies and the asset response path. No commit, push, or PR was created in this delegated worktree.
 - Follow-up diagnosis: `.invite-gate { display: grid; }` overrode the browser’s `[hidden]` rule, so `showApp()` could not hide the invitation gate. Added `.invite-gate[hidden] { display: none; }` and a regression assertion.
 - Living bug process: see `BUGFIX_PLAN.md` for the evidence-first triage checklist, incident log template, communication expectations, and the invitation overlay incident record.
+
+## Production deployment follow-up (2026-09-25)
+
+- PR #17 (`6cad65f8424940b56566155adf018e002453acf2`) was verified merged into `main`.
+- Redeployed the merged Worker with the existing Wrangler configuration to `medicineinventory.craftloop.ca`.
+- Remote D1 migration status reported **no migrations to apply**; no migration was run.
+- Cloudflare deployment version: `765ec7f5-94dc-452c-a925-f4b8abdb3b3c`.
+- Unauthenticated HTTPS check returned the expected Cloudflare Access `302` redirect to the Access login endpoint. No Access or DNS settings were changed.
