@@ -194,6 +194,19 @@
       <form id="addMedicineForm" novalidate>
         <div class="modal-header"><div><span class="overline">NEW ITEM</span><h2 id="addMedicineTitle">Add medicine</h2></div><button class="modal-close" type="button" data-close-modal aria-label="Close add medicine dialog">×</button></div>
         <div class="modal-body">
+          <div class="packaging-scan">
+            <span>Packaging photo</span>
+            <p>Optional. Take or upload a pack photo to suggest a name and expiry. Confirm every value before saving — you can always type them yourself.</p>
+            <div class="packaging-actions">
+              <label class="button secondary file-button">Take photo<input id="packagingCamera" type="file" accept="image/*" capture="environment" /></label>
+              <label class="button secondary file-button">Upload photo<input id="packagingUpload" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+              <button class="text-button" id="clearPackagingPhoto" type="button" hidden>Remove photo</button>
+            </div>
+            <div class="packaging-preview" id="packagingPreview" hidden>
+              <img id="packagingPreviewImg" alt="Selected packaging photo" />
+              <p id="packagingSuggestStatus" role="status"></p>
+            </div>
+          </div>
           <label class="form-field full"><span>Medicine name <em>*</em></span><input id="medicineName" name="name" type="text" placeholder="e.g. Paracetamol" required /><small class="field-error"></small></label>
           <div class="form-row">
             <label class="form-field"><span>Strength</span><input name="strength" type="text" placeholder="e.g. 500 mg" /></label>
@@ -218,6 +231,7 @@
       <div class="modal-header"><div><span class="status-pill" id="batchStatus">Healthy</span><h2 id="batchTitle">Medicine details</h2><p id="batchSubtitle"></p></div><button class="modal-close" type="button" data-close-modal aria-label="Close medicine details">×</button></div>
       <div class="modal-body">
         <div class="detail-hero"><div class="medicine-avatar large" id="batchInitials">PA</div><div><span>Current quantity</span><strong id="batchQuantity">18 tablets</strong></div></div>
+        <figure class="batch-photo" id="batchPhotoWrap" hidden><img id="batchPhoto" alt="Saved packaging photo" /></figure>
         <dl class="detail-grid">
           <div><dt>Expiry date</dt><dd id="batchExpiry">—</dd></div><div><dt>Stored in</dt><dd id="batchLocation">—</dd></div><div><dt>Added</dt><dd id="batchAdded">—</dd></div><div><dt>Notes</dt><dd id="batchNotes">—</dd></div>
         </dl>
