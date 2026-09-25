@@ -13,7 +13,18 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app-shell">
+    <section class="invite-gate" id="inviteGate" aria-labelledby="inviteGateTitle" hidden>
+      <div class="invite-panel">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
+        <p class="eyebrow">HOUSEHOLD ACCESS</p>
+        <h1 id="inviteGateTitle" tabindex="-1">Checking your invitation…</h1>
+        <p id="inviteGateDescription">Please wait while we securely check the signed-in account.</p>
+        <div id="inviteGateChoices"></div>
+        <p id="inviteGateStatus" class="invite-gate-status" role="status" aria-live="polite"></p>
+        <button id="inviteGateRetry" class="button secondary" type="button" hidden>Try again</button>
+      </div>
+    </section>
+    <div class="app-shell" id="appShell" hidden>
       <aside class="sidebar" aria-label="Primary navigation">
         <a class="brand" href="#dashboard" aria-label="Medicine Inventory Tracker home">
           <span class="brand-mark" aria-hidden="true"><span></span><span></span></span>
