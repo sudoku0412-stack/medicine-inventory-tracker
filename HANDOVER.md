@@ -50,6 +50,10 @@ Profile & settings is a single, local-household screen. It persists a display na
 
 This phase intentionally excludes authentication, household sharing, cloud data sync, exports/deletion, themes, and configurable reminder windows.
 
+## Phase 5 — Identity and tenant foundation
+
+Production API requests validate a signed Cloudflare Access JWT (signature, issuer, audience, and expiry); edge email headers are never accepted as identity. D1 now has tenant-scoped users, Access identities, households, memberships, household settings, and inventory/push records. One configured bootstrap owner atomically claims legacy rows. Configure `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, and secret `INITIAL_OWNER_EMAILS` before migration `0004_household_tenants.sql`; local SQLite remains loopback-only and single-user. Invitations and household administration remain the next chunk.
+
 The UI already shows **Kaushik / KS** and a profile avatar; mobile **Profile** shows a toast: *“Profile settings are planned for the next phase.”*
 
 Intended scope (to agree before build):

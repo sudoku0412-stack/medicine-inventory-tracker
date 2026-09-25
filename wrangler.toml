@@ -32,5 +32,6 @@ crons = ["*/15 * * * *"]
 [vars]
 PUSH_CONTACT = "mailto:household@craftloop.ca"
 
-# Set secrets with: npx wrangler secret put GEMINI_API_KEY
-# Optional: ACCESS_TEAM_DOMAIN, ACCESS_AUD (required before going public)
+# Required production secrets: ACCESS_TEAM_DOMAIN, ACCESS_AUD, INITIAL_OWNER_EMAILS.
+# INITIAL_OWNER_EMAILS is a comma-separated, one-time bootstrap allowlist; never
+# put personal addresses in this file or in source control.
