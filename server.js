@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { readFile, stat, mkdir, writeFile, unlink } from 'node:fs/promises';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -63,7 +63,7 @@ export function suggestionFromModel(payload, visionConfigured) {
   const name_source = name ? 'suggested' : 'manual';
   const expiry_source = expiry_date ? 'suggested' : 'manual';
   let message;
-  if (!visionConfigured) message = 'Enter the name and expiry yourself. AI suggestions need a VISION_API_KEY.';
+  if (!visionConfigured) message = 'Enter the name and expiry yourself. AI suggestions need a Gemini API key.';
   else if (name && expiry_date) message = 'Confirm the suggested name and expiry before saving. Edit anything that looks wrong.';
   else if (name && ambiguous) message = 'Confirm the name. The expiry was incomplete or unclear — enter it manually.';
   else if (name) message = 'Confirm the name. Enter the expiry date yourself.';
@@ -72,13 +72,72 @@ export function suggestionFromModel(payload, visionConfigured) {
   return { name, expiry_date, name_source, expiry_source, needs_manual: !name || !expiry_date, vision: Boolean(visionConfigured), message };
 }
 
-function visionConfig(env = process.env) {
-  const key = text(env.VISION_API_KEY, 500);
+function parseEnvFile(path) {
+  const out = {};
+  for (const line of readFileSync(path, 'utf8').split(/\r?\n/)) {
+    if (!line || line.trim().startsWith('#')) continue;
+    const match = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!match) continue;
+    out[match[1]] = match[2].replace(/^['"]|['"]$/g, '');
+  }
+  return out;
+}
+
+function fileSecrets() {
+  const out = {};
+  const envFile = join(root, '.env');
+  const keyFile = join(root, 'data', 'gemini.key');
+  if (existsSync(envFile)) Object.assign(out, parseEnvFile(envFile));
+  if (existsSync(keyFile)) {
+    const raw = readFileSync(keyFile, 'utf8').trim();
+    if (raw && !raw.includes('\n') && !raw.includes('=')) out.GEMINI_API_KEY = raw;
+    else Object.assign(out, parseEnvFile(keyFile));
+  }
+  return out;
+}
+
+export function visionConfig(env = process.env) {
+  const merged = env === process.env ? { ...fileSecrets(), ...env } : { ...env };
+  const key = text(merged.GEMINI_API_KEY, 500) || text(merged.VISION_API_KEY, 500);
   if (!key) return null;
+  const provider = (text(merged.VISION_PROVIDER, 20) || 'gemini').toLowerCase();
+  const model = text(merged.VISION_MODEL, 80) || (provider === 'openai' ? 'gpt-4o-mini' : 'gemini-flash-latest');
+  const url = text(merged.VISION_API_URL, 400) || (provider === 'openai'
+    ? 'https://api.openai.com/v1/chat/completions'
+    : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`);
+  return { provider: provider === 'openai' ? 'openai' : 'gemini', key, url, model };
+}
+
+const PACKAGING_PROMPT = 'Read this medicine packaging photo. Reply with JSON only: {"name": string or null, "expiry_date": "YYYY-MM-DD" or null, "expiry_ambiguous": boolean}. name is the printed medicine name. expiry_date only if a complete calendar day is readable. If only month/year or any digit is unclear, set expiry_date to null and expiry_ambiguous to true. Do not guess missing values.';
+
+export function visionResponseText(body, provider) {
+  if (provider === 'openai') return body?.choices?.[0]?.message?.content || '';
+  const parts = body?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return '';
+  return parts.map(part => part?.text || '').join('');
+}
+
+function visionRequest(config, dataUrl) {
+  if (config.provider === 'openai') {
+    return {
+      url: config.url,
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${config.key}` },
+      body: {
+        model: config.model,
+        max_tokens: 200,
+        temperature: 0,
+        messages: [{ role: 'user', content: [{ type: 'text', text: PACKAGING_PROMPT }, { type: 'image_url', image_url: { url: dataUrl, detail: 'low' } }] }]
+      }
+    };
+  }
+  const photo = parseDataUrl(dataUrl);
   return {
-    key,
-    url: text(env.VISION_API_URL, 300) || 'https://api.openai.com/v1/chat/completions',
-    model: text(env.VISION_MODEL, 80) || 'gpt-4o-mini'
+    url: config.url,
+    headers: { 'content-type': 'application/json', 'x-goog-api-key': config.key },
+    body: {
+      contents: [{ role: 'user', parts: [{ text: PACKAGING_PROMPT }, { inlineData: { mimeType: photo.mime, data: photo.buffer.toString('base64') } }] }],
+      generationConfig: { temperature: 0, maxOutputTokens: 1024, responseMimeType: 'application/json' }
+    }
   };
 }
 
@@ -86,28 +145,22 @@ export async function suggestFromPhoto(dataUrl, { env = process.env, fetchImpl =
   parseDataUrl(dataUrl);
   const config = visionConfig(env);
   if (!config) return suggestionFromModel({}, false);
-  const prompt = 'Read this medicine packaging photo. Reply with JSON only: {"name": string or null, "expiry_date": "YYYY-MM-DD" or null, "expiry_ambiguous": boolean}. name is the printed medicine name. expiry_date only if a complete calendar day is readable. If only month/year or any digit is unclear, set expiry_date to null and expiry_ambiguous to true. Do not guess missing values.';
+  const request = visionRequest(config, dataUrl);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20000);
   try {
-    const response = await fetchImpl(config.url, {
+    const response = await fetchImpl(request.url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${config.key}` },
+      headers: request.headers,
       signal: controller.signal,
-      body: JSON.stringify({
-        model: config.model,
-        max_tokens: 200,
-        temperature: 0,
-        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: dataUrl, detail: 'low' } }] }]
-      })
+      body: JSON.stringify(request.body)
     });
     if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      throw Object.assign(new Error(detail ? 'Vision provider rejected the request.' : 'Vision provider request failed.'), { status: 502 });
+      if (response.status === 503) throw Object.assign(new Error('Gemini is busy. Try the photo again or enter the details yourself.'), { status: 503 });
+      throw Object.assign(new Error('Vision provider rejected the request.'), { status: 502 });
     }
     const body = await response.json();
-    const raw = body?.choices?.[0]?.message?.content;
-    const parsed = parseModelJson(raw);
+    const parsed = parseModelJson(visionResponseText(body, config.provider));
     if (!parsed) return suggestionFromModel({ expiry_ambiguous: true }, true);
     return suggestionFromModel(parsed, true);
   } catch (error) {

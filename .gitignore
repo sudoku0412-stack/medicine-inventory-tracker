@@ -1,4 +1,7 @@
 data/*.sqlite
 data/*.sqlite-*
 data/photos/
+data/gemini.key
+data/vapid.json
+.env
 node_modules/

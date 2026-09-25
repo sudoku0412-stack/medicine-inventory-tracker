@@ -28,12 +28,15 @@ Binding `HOST` to a non-loopback address exposes an unauthenticated application 
 
 Add or edit a batch with an optional JPEG, PNG, or WebP photo (2 MB max). The photo is kept only after you save the batch. Manual name, quantity, and expiry entry always remain available.
 
-If `VISION_API_KEY` is set, one vision request can suggest a medicine name and a complete `YYYY-MM-DD` expiry. Incomplete or unreadable dates are left blank so you type them. Suggestions never create a batch on their own; saving the form is the confirmation step.
+If `GEMINI_API_KEY` or `VISION_API_KEY` is set, or `data/gemini.key` exists, one Gemini vision request can suggest a medicine name and a complete `YYYY-MM-DD` expiry. Incomplete or unreadable dates are left blank so you type them. Suggestions never create a batch on their own; saving the form is the confirmation step.
+
+Put the Gemini key in `data/gemini.key` (gitignored) or in the environment. Do not commit the key.
 
 Optional environment variables:
 
-- `VISION_API_KEY` — required to enable suggestions
-- `VISION_API_URL` — OpenAI-compatible chat completions URL (default `https://api.openai.com/v1/chat/completions`)
-- `VISION_MODEL` — default `gpt-4o-mini`
+- `GEMINI_API_KEY` or `VISION_API_KEY` — enables suggestions
+- `VISION_MODEL` — default `gemini-flash-latest`
+- `VISION_PROVIDER` — `gemini` (default) or `openai`
+- `VISION_API_URL` — override the provider URL
 
 Without a key, photos still save locally and the form asks you to type name and expiry.

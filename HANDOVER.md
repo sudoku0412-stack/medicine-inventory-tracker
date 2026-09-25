@@ -13,7 +13,7 @@
 
 - Manual batch creation/editing, quantity/unit and low-stock threshold, expiry/unknown expiry, location/notes, consume/discard, dashboard, search/status filters, responsive layouts, persistent in-app expiry reminders and read state.
 - Optional packaging photos (JPEG/PNG/WebP, 2 MB, real image signatures). Photos persist only after save and are removed on discard.
-- AI name/expiry suggestions run only when `VISION_API_KEY` is set (OpenAI-compatible URL/model optional). One call per photo, 20s timeout. Invalid or incomplete dates stay blank. Saving the form is confirmation. Manual entry always remains.
+- AI name/expiry suggestions use Google Gemini (`gemini-flash-latest`) when `GEMINI_API_KEY` / `VISION_API_KEY` or gitignored `data/gemini.key` is present. One call per photo, 20s timeout. Invalid or incomplete dates stay blank. Saving the form is confirmation. Manual entry always remains. The key is not stored in Git.
 - Expiry and reminder rules use date-only calendar arithmetic with a 30-day warning window. Same medicine may have multiple batches.
 - Local single-user application, no authentication. Default bind is 127.0.0.1. Static assets use an explicit allowlist.
 - Notifications are still IN-APP ONLY until item 3. No email/push delivery while the app is closed.
@@ -22,7 +22,7 @@
 ## Phase 2 progress
 
 1. **Done — Monthly cabinet check button.** Root cause: white inherited text on a white `.button.secondary` inside the dark reminder card. Fix is on main.
-2. **Done — packaging photos / AI suggest name and expiry.** Implemented with the decisions above. No provider credentials are stored in the repo; without a key, photos still attach and the user types name and expiry.
+2. **Done — packaging photos / AI suggest name and expiry.** Gemini is the default scanner. Credentials stay in `data/gemini.key` or env, never the repo. User confirmation is still required.
 3. **Not started — real expiry delivery (email or web push)** while the app is closed. No service credentials or deployment target selected.
 
 Household sharing and commercial store features remain later phases. Preserve the approved UI unless the user requests changes.
