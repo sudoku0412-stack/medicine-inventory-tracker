@@ -1,7 +1,7 @@
 let medicines=[],notifications=[],activeFilter='all',activeBatchId=null;
 const labels={healthy:'Healthy',expiring:'Expiring soon',expired:'Expired',low:'Low stock',unknown:'Expiry unknown'},qs=(s,p=document)=>p.querySelector(s),qsa=(s,p=document)=>[...p.querySelectorAll(s)],initials=n=>n.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase(),date=v=>v?new Intl.DateTimeFormat('en-CA',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(`${v}T00:00:00Z`)):'Not recorded';
 const unit=b=>`${b.quantity} ${b.unit}`;
-async function api(path,opts={}){const r=await fetch(path,{headers:{'content-type':'application/json'},...opts});if(!r.ok){const d=await r.json().catch(()=>({}));throw Error(d.error||'Request failed.')}return r.status===204?null:r.json()}
+async function api(path,opts={}){const r=await fetch(path,{credentials:'same-origin',headers:{'content-type':'application/json'},...opts});if(!r.ok){const d=await r.json().catch(()=>({}));throw Error(d.error||'Request failed.')}return r.status===204?null:r.json()}
 function el(tag,props={},...kids){const n=document.createElement(tag);Object.entries(props).forEach(([k,v])=>k==='class'?n.className=v:k==='text'?n.textContent=v:k.startsWith('on')?n.addEventListener(k.slice(2),v):n.setAttribute(k,v));n.append(...kids.filter(Boolean));return n}
 const pill=s=>el('span',{class:`status-pill ${s}`,text:labels[s]});
 let packagingPhoto=null,packagingExisting=false,visionEnabled=false;
