@@ -52,17 +52,9 @@ This phase intentionally excludes authentication, household sharing, cloud data 
 
 ## Phase 5 — Identity and tenant foundation
 
-Production API requests validate a signed Cloudflare Access JWT (signature, issuer, audience, and expiry); edge email headers are never accepted as identity. D1 now has tenant-scoped users, Access identities, households, memberships, household settings, and inventory/push records. One configured bootstrap owner atomically claims legacy rows. Configure `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, and secret `INITIAL_OWNER_EMAILS` before migration `0004_household_tenants.sql`; local SQLite remains loopback-only and single-user. Invitations and household administration remain the next chunk.
+Production API requests validate a signed Cloudflare Access JWT (signature, issuer, audience, and expiry); edge email headers are never accepted as identity. D1 now has tenant-scoped users, Access identities, households, memberships, household settings, and inventory/push records. One configured bootstrap owner atomically claims legacy rows. The migration and Worker deployment completed on 2026-09-25 (Worker version `4b2d9873-185f-4906-bf42-6cf92171369b`); `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, and `INITIAL_OWNER_EMAILS` are configured as production secrets. Local SQLite remains loopback-only and single-user.
 
-The UI already shows **Kaushik / KS** and a profile avatar; mobile **Profile** shows a toast: *“Profile settings are planned for the next phase.”*
-
-Intended scope (to agree before build):
-
-- Editable **display name** and **initials** (replace hardcoded copy in `public/index.html` / sidebar).
-- Simple **profile / settings** view from avatar and mobile Profile (not full auth).
-- Optional: household label (“Kaushik’s home”) — still **single household**, not multi-user sharing.
-
-**Explicitly later (not Phase 4):** household sharing, iOS/Android apps, commercial store inventory.
+**Next safe step:** sign in once through Cloudflare Access with a configured owner identity to claim the legacy household. Then implement owner-only invitations and household administration as a separate reviewed chunk. Apple and Google remain Cloudflare Access identity-provider configuration; no client-side OAuth secrets are stored in the repository.
 
 ## Working agreement
 
