@@ -198,8 +198,9 @@
             <span>Packaging photo</span>
             <p>Optional. Take or upload a pack photo to suggest a name and expiry. Confirm every value before saving — you can always type them yourself.</p>
             <div class="packaging-actions">
-              <label class="button secondary file-button">Take photo<input id="packagingCamera" type="file" accept="image/*" capture="environment" /></label>
+              <button class="button secondary" id="openPackagingCamera" type="button">Take photo</button>
               <label class="button secondary file-button">Upload photo<input id="packagingUpload" type="file" accept="image/jpeg,image/png,image/webp" /></label>
+              <input id="packagingCamera" type="file" accept="image/*" capture="environment" hidden />
               <button class="text-button" id="clearPackagingPhoto" type="button" hidden>Remove photo</button>
             </div>
             <div class="packaging-preview" id="packagingPreview" hidden>
@@ -225,6 +226,21 @@
         </div>
         <div class="modal-footer"><button class="button secondary" type="button" data-close-modal>Cancel</button><button class="button primary" type="submit">Add to inventory</button></div>
       </form>
+    </dialog>
+
+    <dialog class="modal camera-modal" id="packagingCameraModal" aria-labelledby="packagingCameraTitle">
+      <div class="modal-header">
+        <div><span class="overline">PACKAGING</span><h2 id="packagingCameraTitle">Take a pack photo</h2></div>
+        <button class="modal-close" type="button" data-close-modal aria-label="Close camera">×</button>
+      </div>
+      <div class="modal-body">
+        <video id="packagingCameraVideo" autoplay playsinline muted></video>
+        <p>Allow camera access if Chrome asks. Frame the medicine name and expiry, then capture.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="button secondary" type="button" data-close-modal>Cancel</button>
+        <button class="button primary" id="capturePackagingCamera" type="button">Capture</button>
+      </div>
     </dialog>
 
     <dialog class="modal batch-modal" id="batchModal" aria-labelledby="batchTitle">

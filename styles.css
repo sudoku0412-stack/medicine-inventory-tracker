@@ -150,6 +150,9 @@ tbody tr:hover { background: #f9fbfa; }
 .packaging-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .file-button { display: inline-flex; align-items: center; position: relative; overflow: hidden; }
 .file-button input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.camera-modal { width: min(640px, calc(100% - 28px)); }
+.camera-modal video { display: block; width: 100%; max-height: min(52vh, 420px); object-fit: cover; background: #0b2221; border-radius: 12px; }
+.camera-modal p { margin: 12px 0 0; color: var(--ink-soft); font-size: .84rem; }
 .packaging-preview { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: center; margin-top: 13px; }
 .packaging-preview img { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; background: #fff; }
 .packaging-preview p { margin: 0; color: var(--deep); font-size: .84rem; font-weight: 500; }

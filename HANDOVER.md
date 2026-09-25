@@ -13,7 +13,7 @@
 ## Delivered behavior and limits
 
 - Manual batch creation/editing, quantity/unit and low-stock threshold, expiry/unknown expiry, location/notes, consume/discard, dashboard, search/status filters, responsive layouts, persistent in-app expiry reminders and read state.
-- Optional packaging photos (JPEG/PNG/WebP, 2 MB, real image signatures). Photos persist only after save and are removed on discard.
+- Optional packaging photos (JPEG/PNG/WebP, 2 MB, real image signatures). Take photo uses a live camera preview on localhost/HTTPS; Upload photo uses the file picker. Photos persist only after save and are removed on discard.
 - AI name/expiry suggestions use Google Gemini (`gemini-flash-latest`) when `GEMINI_API_KEY` / `VISION_API_KEY` or gitignored `data/gemini.key` is present. One call per photo, 20s timeout. Invalid or incomplete dates stay blank. Saving the form is confirmation. Manual entry always remains. The key is not stored in Git.
 - Web push expiry alerts: local VAPID keys, Notifications → Enable expiry alerts, service worker, server delivery when a 30-day reminder is created and on a 15-minute timer. Requires `npm start` plus a browser subscription on localhost or HTTPS. Not email.
 - Expiry and reminder rules use date-only calendar arithmetic with a 30-day warning window.
