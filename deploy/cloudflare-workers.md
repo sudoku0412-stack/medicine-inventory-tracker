@@ -18,7 +18,9 @@ npm install
 npx wrangler login
 ```
 
-2. Create resources (once):
+2. **Enable R2** in the Cloudflare dashboard (same account as Workers): open **R2** in the left sidebar and accept setup (Workers Free includes a small R2 allowance; billing may ask for a payment method even if usage stays free). Error `10042` means R2 is not enabled yet.
+
+3. Create resources (once):
 
 ```sh
 npx wrangler d1 create medicine-inventory
@@ -26,15 +28,21 @@ npx wrangler r2 bucket create medicine-inventory-photos
 npx wrangler kv namespace create medicine-inventory-kv
 ```
 
-3. Copy the **D1 database id** and **KV namespace id** into `wrangler.toml` (replace placeholders if Wrangler did not fill them automatically).
+You already created D1 and KV. After R2 is enabled, run only:
 
-4. Apply the schema:
+```sh
+npx wrangler r2 bucket create medicine-inventory-photos
+```
+
+4. Confirm `wrangler.toml` has your **D1 database_id** and **KV id** (this repo pins the ids from your account).
+
+5. Apply the schema:
 
 ```sh
 npx wrangler d1 migrations apply medicine-inventory --remote
 ```
 
-5. Set secrets:
+6. Set secrets:
 
 ```sh
 npx wrangler secret put GEMINI_API_KEY
