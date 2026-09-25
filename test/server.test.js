@@ -217,7 +217,7 @@ test('push subscribe endpoint stores a subscription', async () => {
 });
 
 test('app.js parses', () => {
-  const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'app.js');
+  const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'app.js');
   const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
 });

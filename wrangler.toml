@@ -1,0 +1,35 @@
+name = "medicine-inventory"
+main = "worker/index.js"
+compatibility_date = "2025-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+routes = [
+  { pattern = "medicineinventory.craftloop.ca", custom_domain = true }
+]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "medicine-inventory"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "medicine-inventory-photos"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+PUSH_CONTACT = "mailto:household@craftloop.ca"
+
+# Set secrets with: npx wrangler secret put GEMINI_API_KEY
+# Optional: ACCESS_TEAM_DOMAIN, ACCESS_AUD (required before going public)
