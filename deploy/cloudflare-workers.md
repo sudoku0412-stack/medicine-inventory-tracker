@@ -6,7 +6,7 @@ Local `npm start` still works for development (SQLite in `data/`). Production da
 
 ## Before you publish
 
-1. **Cloudflare Access** on `medicineinventory.craftloop.ca` (Zero Trust → Access → self-hosted app). Allow only your household email. Without Access, anyone with the URL could edit your cabinet.
+1. **Cloudflare Access** on `medicineinventory.craftloop.ca` (Zero Trust → Access → self-hosted app). Configure Google and/or Apple identity providers and allow only intended household accounts. Apple requires an Apple Developer Service ID, configured return URL and domain association in Apple’s portal, then the provider configuration in Cloudflare; keep all Apple credentials in the respective consoles.
 2. **Gemini key** as a Worker secret for packaging scan.
 
 ## One-time Cloudflare setup
@@ -48,9 +48,12 @@ npx wrangler d1 migrations apply medicine-inventory --remote
 npx wrangler secret put GEMINI_API_KEY
 npx wrangler secret put ACCESS_TEAM_DOMAIN
 npx wrangler secret put ACCESS_AUD
+npx wrangler secret put INITIAL_OWNER_EMAILS
 ```
 
-Use your Access team URL (for example `https://<team>.cloudflareaccess.com`) and the application **Audience** tag from the Access app for this hostname.
+Use your Access team URL (for example `https://<team>.cloudflareaccess.com`) and the application **Audience** tag from the Access app for this hostname. `INITIAL_OWNER_EMAILS` is a comma-separated, one-time bootstrap allowlist. Enter it directly into the secret prompt; do not add real addresses to `wrangler.toml`, source, or documentation.
+
+For the tenant migration, apply migrations first, set these three Access/bootstrap secrets, then deploy. The first successfully verified allowlisted account atomically creates the first household and backfills existing unassigned batches, notifications, settings, and push subscriptions to it. Unknown users are denied; a second allowlisted account is not auto-added. Confirm that first sign-in before enabling Access policies for additional people.
 
 7. Attach the custom domain in the Cloudflare dashboard if Wrangler has not already linked `medicineinventory.craftloop.ca`.
 
@@ -79,7 +82,8 @@ Open **https://medicineinventory.craftloop.ca** on your phone, sign in with Acce
 
 ## Troubleshooting
 
-- **401 Sign in through Cloudflare Access:** set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` secrets, or delete both secrets if Access already protects the hostname (the Worker trusts `Cf-Access-Authenticated-User-Email` from Zero Trust). Wrong `ACCESS_AUD` causes API 401 while the HTML still loads.
+- **401 Sign in through Cloudflare Access:** confirm the signed assertion comes from the configured team domain and matches the application audience. The Worker validates this JWT and does not trust `Cf-Access-Authenticated-User-Email`. A missing or wrong audience causes API 401 while the HTML still loads.
+- **403 This account is not a member:** set `INITIAL_OWNER_EMAILS` before the first post-migration sign-in, then sign in once with one configured address. Do not add more people until household invitations are implemented.
 - **Unable to load inventory / empty dashboard:** run `npx wrangler d1 migrations apply medicine-inventory --remote`, then check DevTools → Network → `/api/batches` (401 = Access secrets; 500 = D1/migrations).
 - **Vision false / no Gemini suggestions:** set `GEMINI_API_KEY` secret and redeploy.
 - **R2 error 10042:** enable R2 in the Cloudflare dashboard first, then create the bucket again.

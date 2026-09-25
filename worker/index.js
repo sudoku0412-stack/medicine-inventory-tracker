@@ -8,6 +8,7 @@ import {
   visionConfig
 } from '../lib/shared.js';
 import { createD1Store, loadVapid } from '../lib/store-d1.js';
+import { resolveTenant } from '../lib/tenants.js';
 
 const jwksCache = { at: 0, keys: null };
 
@@ -32,9 +33,7 @@ async function readJson(request) {
 
 async function ensureAccess(request, env) {
   const access = accessConfig(env);
-  if (!access) return;
-  // Zero Trust already validated the browser session; Cloudflare forwards this to the Worker.
-  if (request.headers.get('Cf-Access-Authenticated-User-Email')) return;
+  if (!access) throw Object.assign(new Error('Cloudflare Access JWT validation is not configured.'), { status: 503 });
   let keys = jwksCache.keys;
   if (!keys || Date.now() - jwksCache.at > 60 * 60 * 1000) {
     const certs = await fetch(access.certs);
@@ -43,20 +42,26 @@ async function ensureAccess(request, env) {
     jwksCache.keys = keys;
     jwksCache.at = Date.now();
   }
-  await requireCloudflareAccess(request, { env, now: Date.now(), keys });
+  return requireCloudflareAccess(request, { env, now: Date.now, keys });
 }
 
-async function getStore(env) {
+async function getStore(env, tenant) {
   const vapid = await loadVapid(env.KV, env);
-  return createD1Store(env.DB, env.PHOTOS, vapid);
+  return createD1Store(env.DB, env.PHOTOS, vapid, tenant);
+}
+
+async function migrationIsActive(db) {
+  try { return (await db.prepare("SELECT state FROM migration_runs WHERE singleton=1").first())?.state === 'active'; } catch { return false; }
 }
 
 export async function handleRequest(request, env, ctx) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) {
     try {
-      await ensureAccess(request, env);
-      const store = await getStore(env);
+      const principal = await ensureAccess(request, env);
+      const tenant = await resolveTenant(env.DB, principal, env);
+      if (request.method !== 'GET' && await migrationIsActive(env.DB)) return json({ error: 'Inventory is temporarily read-only while a migration is in progress.' }, 503);
+      const store = await getStore(env, tenant);
       const match = url.pathname.match(/^\/api\/batches\/([^/]+)(?:\/(consume|discard|photo))?$/);
       if (request.method === 'GET' && url.pathname === '/api/settings') return json(await store.settings());
       if (request.method === 'PATCH' && url.pathname === '/api/settings') return json(await store.updateSettings(await readJson(request)));
@@ -131,7 +136,11 @@ export default {
     return handleRequest(request, env, ctx);
   },
   async scheduled(event, env, ctx) {
-    const store = await getStore(env);
-    ctx.waitUntil(store.deliverPushes({ contact: env.PUSH_CONTACT }));
+    ctx.waitUntil((async () => {
+      const memberships = await env.DB.prepare("SELECT household_id,user_id FROM memberships WHERE role='owner'").all();
+      const vapid = await loadVapid(env.KV, env);
+      await Promise.all((memberships.results || []).map(({ household_id, user_id }) =>
+        createD1Store(env.DB, env.PHOTOS, vapid, { householdId: household_id, userId: user_id }).deliverPushes({ contact: env.PUSH_CONTACT })));
+    })());
   }
 };
