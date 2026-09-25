@@ -85,3 +85,8 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - Remote D1 migration status reported **no migrations to apply**; no migration was run.
 - Cloudflare deployment version: `765ec7f5-94dc-452c-a925-f4b8abdb3b3c`.
 - Unauthenticated HTTPS check returned the expected Cloudflare Access `302` redirect to the Access login endpoint. No Access or DNS settings were changed.
+
+## Sign-out follow-up (2026-09-25)
+
+- Profile & settings now includes an accessible **Sign out** link to the same-origin Cloudflare Access endpoint `/cdn-cgi/access/logout`. It does not add an application-side session or change Access/DNS configuration.
+- This ends the user's Cloudflare Access session, which Cloudflare documents as applying across Access-protected applications. Verify on the deployed custom domain after merge.
