@@ -4,4 +4,6 @@ data/photos/
 data/vapid.json
 data/gemini.key
 .env
+deploy/cloudflared.yml
+.cloudflared/
 node_modules/

@@ -5,7 +5,8 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createStore, statusFor, suggestionFromModel, parseModelJson, parseDataUrl, MAX_PHOTO_BYTES, app, suggestFromPhoto, createVapidKeys, createVapidJwt, verifyVapidJwt } from '../server.js';
+import { generateKeyPairSync, sign } from 'node:crypto';
+import { createStore, statusFor, suggestionFromModel, parseModelJson, parseDataUrl, MAX_PHOTO_BYTES, app, suggestFromPhoto, createVapidKeys, createVapidJwt, verifyVapidJwt, accessConfig, requireCloudflareAccess } from '../server.js';
 
 const fixed = () => new Date('2028-02-01T12:00:00Z');
 function fresh() {
@@ -220,4 +221,57 @@ test('app.js parses', () => {
   const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'app.js');
   const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
+});
+
+function accessPair() {
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  return { privateKey, publicJwk: { ...publicKey.export({ format: 'jwk' }), kid: 'test-key', alg: 'RS256', use: 'sig' } };
+}
+function accessJwt(privateKey, payload, kid = 'test-key') {
+  const header = Buffer.from(JSON.stringify({ alg: 'RS256', kid })).toString('base64url');
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const data = `${header}.${body}`;
+  return `${data}.${sign('sha256', Buffer.from(data), privateKey).toString('base64url')}`;
+}
+
+test('Cloudflare Access is off unless team and audience are set', () => {
+  assert.equal(accessConfig({}), null);
+  assert.equal(accessConfig({ ACCESS_TEAM_DOMAIN: 'https://family.cloudflareaccess.com' }), null);
+  assert.deepEqual(accessConfig({ ACCESS_TEAM_DOMAIN: 'family.cloudflareaccess.com', ACCESS_AUD: 'aud-1' }), {
+    issuer: 'https://family.cloudflareaccess.com',
+    aud: 'aud-1',
+    certs: 'https://family.cloudflareaccess.com/cdn-cgi/access/certs'
+  });
+});
+
+test('Cloudflare Access JWT is required when configured', async () => {
+  const { privateKey, publicJwk } = accessPair();
+  const env = { ACCESS_TEAM_DOMAIN: 'https://family.cloudflareaccess.com', ACCESS_AUD: 'aud-1' };
+  const keys = [publicJwk];
+  await assert.rejects(() => requireCloudflareAccess({ headers: {} }, { env, keys }), /Sign in through Cloudflare Access/);
+  const token = accessJwt(privateKey, { iss: 'https://family.cloudflareaccess.com', aud: 'aud-1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  await requireCloudflareAccess({ headers: { 'cf-access-jwt-assertion': token } }, { env, keys });
+});
+
+test('API refuses unauthenticated requests when Access is configured', async () => {
+  const { dir, store } = fresh();
+  const { privateKey, publicJwk } = accessPair();
+  const env = { ACCESS_TEAM_DOMAIN: 'https://family.cloudflareaccess.com', ACCESS_AUD: 'aud-1' };
+  const server = app(store, {
+    env,
+    fetchImpl: async url => {
+      if (String(url).includes('/cdn-cgi/access/certs')) return { ok: true, json: async () => ({ keys: [publicJwk] }) };
+      return { ok: true, status: 201 };
+    }
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address();
+  const denied = await fetch(`http://127.0.0.1:${port}/api/batches`);
+  assert.equal(denied.status, 401);
+  const token = accessJwt(privateKey, { iss: 'https://family.cloudflareaccess.com', aud: 'aud-1', exp: Math.floor(Date.now() / 1000) + 3600 });
+  const allowed = await fetch(`http://127.0.0.1:${port}/api/batches`, { headers: { 'cf-access-jwt-assertion': token } });
+  assert.equal(allowed.status, 200);
+  server.close();
+  store.close();
+  rmSync(dir, { recursive: true });
 });

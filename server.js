@@ -82,6 +82,49 @@ function endpointAllowed(endpoint) {
   return url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost');
 }
 
+export function accessConfig(env = process.env) {
+  const raw = text(env.ACCESS_TEAM_DOMAIN, 200).replace(/\/$/, '');
+  const aud = text(env.ACCESS_AUD, 200);
+  if (!raw || !aud) return null;
+  const issuer = raw.startsWith('https://') ? raw : `https://${raw}`;
+  return { issuer, aud, certs: `${issuer}/cdn-cgi/access/certs` };
+}
+
+export function accessTokenFromRequest(req) {
+  const header = req.headers?.['cf-access-jwt-assertion'];
+  if (header) return String(Array.isArray(header) ? header[0] : header);
+  const cookie = Array.isArray(req.headers?.cookie) ? req.headers.cookie.join('; ') : String(req.headers?.cookie || '');
+  const match = /(?:^|;\s*)CF_Authorization=([^;]+)/.exec(cookie);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
+export async function requireCloudflareAccess(req, { env = process.env, fetchImpl = fetch, now = Date.now, keys } = {}) {
+  const cfg = accessConfig(env);
+  if (!cfg) return;
+  const denied = Object.assign(new Error('Sign in through Cloudflare Access to open this household tracker.'), { status: 401 });
+  const token = accessTokenFromRequest(req);
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3) throw denied;
+  let header, payload;
+  try {
+    header = JSON.parse(Buffer.from(parts[0], 'base64url').toString());
+    payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+  } catch { throw denied; }
+  if (header.alg !== 'RS256') throw denied;
+  let jwks = keys;
+  if (!jwks) {
+    const res = await fetchImpl(cfg.certs);
+    if (!res.ok) throw Object.assign(new Error('Could not verify Cloudflare Access.'), { status: 503 });
+    jwks = (await res.json()).keys || [];
+  }
+  const jwk = jwks.find(k => k.kid && k.kid === header.kid) || (jwks.length === 1 ? jwks[0] : null);
+  if (!jwk) throw denied;
+  const ok = verify('sha256', Buffer.from(`${parts[0]}.${parts[1]}`), createPublicKey({ key: jwk, format: 'jwk' }), Buffer.from(parts[2], 'base64url'));
+  const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+  const iss = String(payload.iss || '').replace(/\/$/, '');
+  if (!ok || iss !== cfg.issuer || !auds.includes(cfg.aud) || !payload.exp || payload.exp * 1000 < now()) throw denied;
+}
+
 export async function sendPush(endpoint, vapid, { fetchImpl = fetch, contact = 'mailto:household@localhost' } = {}) {
   if (!endpointAllowed(endpoint)) throw Object.assign(new Error('Push endpoint must be HTTPS (or localhost).'), { status: 400 });
   const url = new URL(endpoint);
@@ -405,9 +448,22 @@ const json = (res, code, data) => { res.writeHead(code, { 'content-type': 'appli
 const photoTypes = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
 
 export function app(store = createStore(), { suggest = suggestFromPhoto, env = process.env, fetchImpl = fetch } = {}) {
+  const jwksCache = { at: 0, keys: null };
   return createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost');
+      const access = accessConfig(env);
+      if (access) {
+        let keys = jwksCache.keys;
+        if (!keys || Date.now() - jwksCache.at > 60 * 60 * 1000) {
+          const certs = await fetchImpl(access.certs);
+          if (!certs.ok) throw Object.assign(new Error('Could not verify Cloudflare Access.'), { status: 503 });
+          keys = (await certs.json()).keys || [];
+          jwksCache.keys = keys;
+          jwksCache.at = Date.now();
+        }
+        await requireCloudflareAccess(req, { env, now: Date.now, keys });
+      }
       if (req.method === 'GET' && !url.pathname.startsWith('/api/') && !publicAssets.has(url.pathname)) return json(res, 404, { error: 'Not found' });
       const body = async () => {
         let raw = '';
@@ -478,6 +534,19 @@ export function app(store = createStore(), { suggest = suggestFromPhoto, env = p
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const envFile = join(root, '.env');
+  if (existsSync(envFile)) {
+    for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+      const row = line.trim();
+      if (!row || row.startsWith('#')) continue;
+      const cut = row.indexOf('=');
+      if (cut < 1) continue;
+      const key = row.slice(0, cut).trim();
+      let value = row.slice(cut + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
+      if (!process.env[key]) process.env[key] = value;
+    }
+  }
   const host = process.env.HOST || '127.0.0.1';
   const port = process.env.PORT || 3000;
   const store = createStore();
@@ -485,6 +554,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const tick = () => store.deliverPushes().catch(err => console.error('Push delivery failed:', err.message));
   server.listen(port, host, () => {
     console.log(`Medicine Tracker on http://${host}:${port}`);
+    const access = accessConfig();
+    if (access) console.log(`Cloudflare Access required (${access.issuer})`);
+    else if (host !== '127.0.0.1' && host !== 'localhost') console.warn('No login is enabled. Set ACCESS_TEAM_DOMAIN and ACCESS_AUD before publishing this app.');
     tick();
     const ms = Number(process.env.PUSH_INTERVAL_MS) || 15 * 60 * 1000;
     setInterval(tick, ms);

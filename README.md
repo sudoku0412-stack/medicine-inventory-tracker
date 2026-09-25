@@ -52,3 +52,15 @@ In-app reminders still appear in the Notifications view. To also get a system no
 The server generates a local VAPID key pair (no third-party push service account). It pings subscribed browsers when a new 30-day expiry reminder is created, and retries about every 15 minutes (`PUSH_INTERVAL_MS`). Optional `PUSH_CONTACT` is the VAPID `mailto:` subject (default `mailto:household@localhost`).
 
 This is not email. Alerts require this computer’s Node process and a browser that still has the push subscription. They will not arrive on a phone that never enabled alerts, or if the tracker server is stopped.
+
+## Phone access on your domain (Cloudflare)
+
+Cloudflare Pages/Workers cannot host this app. Use a **Cloudflare Tunnel** to `http://127.0.0.1:3000` plus **Cloudflare Access** so the phone can open HTTPS and use the camera without publishing an unauthenticated cabinet.
+
+Keep `npm start` and `cloudflared` running on the same machine. Step-by-step: `deploy/cloudflare.md`.
+
+Optional origin checks (set in gitignored `.env`; loaded when you run `npm start`):
+
+- `ACCESS_TEAM_DOMAIN` — `https://<team>.cloudflareaccess.com`
+- `ACCESS_AUD` — Access application audience
+

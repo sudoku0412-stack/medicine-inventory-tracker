@@ -1,0 +1,10 @@
+# Copy to deploy/cloudflared.yml (gitignored) or ~/.cloudflared/config.yml
+# Replace the tunnel id, credentials path, and hostname.
+
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /Users/YOU/.cloudflared/YOUR_TUNNEL_ID.json
+
+ingress:
+  - hostname: tracker.example.com
+    service: http://127.0.0.1:3000
+  - service: http_status:404
