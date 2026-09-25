@@ -30,6 +30,22 @@ export * from './lib/shared.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(root, 'public');
+const DEFAULT_SETTINGS = Object.freeze({ display_name: 'Kaushik', household_name: 'Kaushik’s home', default_storage_location: 'Medicine cabinet' });
+const storageLocations = new Set(['Medicine cabinet', 'Bathroom cabinet', 'Kitchen drawer', 'Refrigerator', 'First aid kit']);
+
+function profileText(value, label, max) {
+  const cleaned = typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
+  if (cleaned.length < 1 || cleaned.length > max) throw Object.assign(new Error(`${label} must be between 1 and ${max} characters.`), { status: 400 });
+  return cleaned;
+}
+
+function normalizeSettings(data) {
+  const display_name = profileText(data.display_name, 'Display name', 60);
+  const household_name = profileText(data.household_name, 'Household name', 80);
+  const default_storage_location = typeof data.default_storage_location === 'string' ? data.default_storage_location.trim() : '';
+  if (!storageLocations.has(default_storage_location)) throw Object.assign(new Error('Choose a valid default storage location.'), { status: 400 });
+  return { display_name, household_name, default_storage_location };
+}
 
 function parseEnvFile(path) {
   const out = {};
@@ -79,12 +95,14 @@ export function createStore(path = join(root, 'data', 'inventory.sqlite'), clock
   const db = new DatabaseSync(path); db.exec(`PRAGMA foreign_keys = ON;
     CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY,name TEXT NOT NULL,strength TEXT NOT NULL DEFAULT '',form TEXT NOT NULL,quantity INTEGER NOT NULL CHECK(quantity >= 0),unit TEXT NOT NULL,expiry_date TEXT,location TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',low_stock_threshold INTEGER NOT NULL DEFAULT 4 CHECK(low_stock_threshold >= 0),created_at TEXT NOT NULL,updated_at TEXT NOT NULL,discarded_at TEXT,photo_path TEXT);
     CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY,batch_id TEXT NOT NULL REFERENCES batches(id),kind TEXT NOT NULL,trigger_date TEXT NOT NULL,read_at TEXT,created_at TEXT NOT NULL,pushed_at TEXT,UNIQUE(batch_id,kind,trigger_date));
-    CREATE TABLE IF NOT EXISTS push_subscriptions (endpoint TEXT PRIMARY KEY,p256dh TEXT NOT NULL,auth TEXT NOT NULL,created_at TEXT NOT NULL);`);
+    CREATE TABLE IF NOT EXISTS push_subscriptions (endpoint TEXT PRIMARY KEY,p256dh TEXT NOT NULL,auth TEXT NOT NULL,created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS profile_settings (singleton INTEGER PRIMARY KEY CHECK (singleton = 1),display_name TEXT NOT NULL,household_name TEXT NOT NULL,default_storage_location TEXT NOT NULL,updated_at TEXT NOT NULL);`);
   const columns = db.prepare('PRAGMA table_info(batches)').all().map(c => c.name);
   if (!columns.includes('photo_path')) db.exec('ALTER TABLE batches ADD COLUMN photo_path TEXT');
   const noteCols = db.prepare('PRAGMA table_info(notifications)').all().map(c => c.name);
   if (!noteCols.includes('pushed_at')) db.exec('ALTER TABLE notifications ADD COLUMN pushed_at TEXT');
   const now = () => clock().toISOString();
+  db.prepare('INSERT OR IGNORE INTO profile_settings (singleton,display_name,household_name,default_storage_location,updated_at) VALUES (1,?,?,?,?)').run(DEFAULT_SETTINGS.display_name, DEFAULT_SETTINGS.household_name, DEFAULT_SETTINGS.default_storage_location, now());
   function reminders() {
     const today = todayISO(clock());
     const end = addCalendarDays(today, 30);
@@ -112,6 +130,15 @@ export function createStore(path = join(root, 'data', 'inventory.sqlite'), clock
     dataDir,
     vapid,
     close: () => db.close(),
+    settings() {
+      const saved = db.prepare('SELECT display_name,household_name,default_storage_location FROM profile_settings WHERE singleton=1').get();
+      return saved ? { ...saved } : { ...DEFAULT_SETTINGS };
+    },
+    updateSettings(data) {
+      const settings = normalizeSettings(data);
+      db.prepare('UPDATE profile_settings SET display_name=?,household_name=?,default_storage_location=?,updated_at=? WHERE singleton=1').run(settings.display_name, settings.household_name, settings.default_storage_location, now());
+      return this.settings();
+    },
     list() {
       reminders();
       return db.prepare('SELECT * FROM batches WHERE discarded_at IS NULL AND quantity > 0 ORDER BY expiry_date IS NULL, expiry_date, name').all().map(b => publicBatch(b, todayISO(clock())));
@@ -260,6 +287,8 @@ export function app(store = createStore(), { suggest = suggestFromPhoto, env = p
         }
       };
       const match = url.pathname.match(new RegExp('^/api/batches/([^/]+)(?:/(consume|discard|photo))?$'));
+      if (req.method === 'GET' && url.pathname === '/api/settings') return json(res, 200, store.settings());
+      if (req.method === 'PATCH' && url.pathname === '/api/settings') return json(res, 200, store.updateSettings(await body()));
       if (req.method === 'GET' && url.pathname === '/api/batches') return json(res, 200, store.list());
       if (req.method === 'GET' && url.pathname === '/api/packaging/status') return json(res, 200, { vision: Boolean(visionConfig(env)) });
       if (req.method === 'POST' && url.pathname === '/api/packaging/suggest') {

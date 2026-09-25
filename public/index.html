@@ -36,13 +36,17 @@
             </span>
             Notifications
           </button>
+          <button class="nav-item" type="button" data-view="profile">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+            Profile
+          </button>
         </nav>
 
-        <div class="household-card">
+        <button class="household-card" type="button" data-view="profile" aria-label="Open Profile and settings">
           <div class="household-icon" aria-hidden="true">KS</div>
-          <div><strong>Kaushik’s home</strong><span>1 household</span></div>
-          <button type="button" aria-label="Household options">•••</button>
-        </div>
+          <div><strong id="sideHouseholdName">Kaushik’s home</strong><span>1 household</span></div>
+          <span class="household-more" aria-hidden="true">•••</span>
+        </button>
       </aside>
 
       <main class="main-content">
@@ -56,7 +60,7 @@
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8M10 21h4" /></svg>
               <span id="topNotificationCount" hidden>0</span>
             </button>
-            <button class="avatar" type="button" aria-label="Open profile">KS</button>
+            <button class="avatar" type="button" data-view="profile" aria-label="Open profile">KS</button>
           </div>
         </header>
 
@@ -64,7 +68,7 @@
           <div class="page-heading">
             <div>
               <p class="eyebrow" id="todayDate">HOUSEHOLD OVERVIEW</p>
-              <h1>Good morning, Kaushik</h1>
+              <h1 id="dashboardGreeting">Good morning, Kaushik</h1>
               <p>Here’s what needs attention in your medicine cabinet.</p>
             </div>
             <button class="button primary add-medicine-trigger" type="button">
@@ -179,6 +183,31 @@
             </aside>
           </div>
         </section>
+
+        <section class="view" id="profileView" data-view-panel="profile" hidden>
+          <div class="page-heading">
+            <div><p class="eyebrow">YOUR HOUSEHOLD</p><h1>Profile &amp; settings</h1><p>Keep the names and defaults your household sees every day up to date.</p></div>
+          </div>
+          <form class="profile-layout" id="profileSettingsForm" novalidate>
+            <section class="profile-card" aria-labelledby="profileDetailsTitle">
+              <div class="profile-card-heading"><span class="profile-icon" aria-hidden="true">●</span><div><h2 id="profileDetailsTitle">Profile</h2><p>Your name appears in the dashboard greeting and avatar.</p></div></div>
+              <div class="form-field"><label for="displayName">Display name</label><input id="displayName" name="display_name" type="text" minlength="1" maxlength="60" required autocomplete="name" aria-describedby="displayNameHelp" /><small id="displayNameHelp">1–60 characters</small></div>
+            </section>
+            <section class="profile-card" aria-labelledby="householdDetailsTitle">
+              <div class="profile-card-heading"><span class="profile-icon" aria-hidden="true">⌂</span><div><h2 id="householdDetailsTitle">Household</h2><p>This is the label shown in the sidebar.</p></div></div>
+              <div class="form-field"><label for="householdName">Household name</label><input id="householdName" name="household_name" type="text" minlength="1" maxlength="80" required autocomplete="organization" aria-describedby="householdNameHelp" /><small id="householdNameHelp">1–80 characters</small></div>
+            </section>
+            <section class="profile-card" aria-labelledby="medicineDefaultsTitle">
+              <div class="profile-card-heading"><span class="profile-icon" aria-hidden="true">+</span><div><h2 id="medicineDefaultsTitle">Medicine defaults</h2><p>Applied only when you add a new medicine. Existing medicines stay unchanged.</p></div></div>
+              <div class="form-field"><label for="defaultStorageLocation">Default storage location</label><select id="defaultStorageLocation" name="default_storage_location"><option>Medicine cabinet</option><option>Bathroom cabinet</option><option>Kitchen drawer</option><option>Refrigerator</option><option>First aid kit</option></select></div>
+            </section>
+            <section class="profile-card device-alert-card" aria-labelledby="deviceAlertsTitle">
+              <div class="profile-card-heading"><span class="profile-icon" aria-hidden="true">⌁</span><div><h2 id="deviceAlertsTitle">Device alerts</h2><p id="deviceAlertStatus">Check expiry alerts in Notifications for this device.</p></div></div>
+              <button class="text-button" type="button" data-view="notifications">Manage expiry alerts <span aria-hidden="true">→</span></button>
+            </section>
+            <div class="profile-save-row"><p id="profileSaveStatus" role="status" aria-live="polite"></p><button class="button primary" id="saveProfileSettings" type="submit" disabled>Save changes</button></div>
+          </form>
+        </section>
       </main>
 
       <nav class="mobile-nav" aria-label="Mobile navigation">
@@ -186,7 +215,7 @@
         <button type="button" data-view="inventory"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5.5h14v15H5zM8 3.5h8v4H8zM9 12h6M9 16h4" /></svg><span>Inventory</span></button>
         <button class="mobile-add add-medicine-trigger" type="button" aria-label="Add medicine"><span>＋</span></button>
         <button type="button" data-view="notifications"><span class="mobile-icon-wrap"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 8h18c0-1-3-1-3-8M10 21h4" /></svg><i id="mobileNotificationCount" hidden>0</i></span><span>Alerts</span></button>
-        <button type="button" id="mobileProfile"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" /></svg><span>Profile</span></button>
+        <button type="button" id="mobileProfile" data-view="profile"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" /></svg><span>Profile</span></button>
       </nav>
     </div>
 

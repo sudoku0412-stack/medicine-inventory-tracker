@@ -44,7 +44,11 @@ Always-on hosting at **medicineinventory.craftloop.ca** without a home Mac or tu
 
 **Not done:** automatic import from an existing local `data/inventory.sqlite` into D1.
 
-## Phase 4 — planned (profile; not started)
+## Phase 4 — Profile & settings
+
+Profile & settings is a single, local-household screen. It persists a display name (1–60 characters), household name (1–80 characters), and default storage location in both SQLite and D1. The default applies only when creating a new medicine; existing rows are not rewritten. The API is `GET`/`PATCH /api/settings`; production requires D1 migration `0003_profile_settings.sql`.
+
+This phase intentionally excludes authentication, household sharing, cloud data sync, exports/deletion, themes, and configurable reminder windows.
 
 The UI already shows **Kaushik / KS** and a profile avatar; mobile **Profile** shows a toast: *“Profile settings are planned for the next phase.”*
 
