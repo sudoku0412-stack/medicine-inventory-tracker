@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { app, createStore } from '../server.js';
@@ -51,4 +51,11 @@ test('settings API returns and updates the singleton profile', async () => {
     store.close();
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('profile provides a same-origin Cloudflare Access sign-out action', () => {
+  const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  assert.match(page, /<h2 id="signOutTitle">Sign out<\/h2>/);
+  assert.match(page, /href="\/cdn-cgi\/access\/logout">Sign out<\/a>/);
+  assert.match(page, /Sign out of Cloudflare Access on this device\./);
 });
