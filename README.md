@@ -51,4 +51,12 @@ In-app reminders still appear in the Notifications view. To also get a system no
 
 The server generates a local VAPID key pair (no third-party push service account). It pings subscribed browsers when a new 30-day expiry reminder is created, and retries about every 15 minutes (`PUSH_INTERVAL_MS`). Optional `PUSH_CONTACT` is the VAPID `mailto:` subject (default `mailto:household@localhost`).
 
-This is not email. Alerts require this computer’s Node process and a browser that still has the push subscription. They will not arrive on a phone that never enabled alerts, or if the tracker server is stopped.
+This is not email. Alerts require this computer’s Node process and a browser that still has the push subscription when running locally. On Cloudflare, a scheduled Worker delivers pushes without your Mac.
+
+## Phone access on your domain (Cloudflare, no Mac)
+
+Production URL: **https://medicineinventory.craftloop.ca**
+
+Deploy with **Cloudflare Workers + D1 + R2** (always on). No tunnel and no `npm start` on your laptop for phone use. Step-by-step: **`deploy/cloudflare-workers.md`**.
+
+Requires **Cloudflare Access** on that hostname and `GEMINI_API_KEY` as a Worker secret. Local dev remains `npm start` → http://127.0.0.1:3000 with SQLite in `data/`.

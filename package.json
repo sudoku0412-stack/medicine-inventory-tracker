@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "deploy": "wrangler deploy",
+    "cf:migrate": "wrangler d1 migrations apply medicine-inventory --remote"
+  },
+  "devDependencies": {
+    "wrangler": "^4.14.0"
   }
 }
