@@ -8,7 +8,7 @@ import {
   visionConfig
 } from '../lib/shared.js';
 import { createD1Store, loadVapid } from '../lib/store-d1.js';
-import { onboardingStatus, resolveTenant, setupInitialShop } from '../lib/tenants.js';
+import { listShops, onboardingStatus, resolveTenant, setupInitialShop } from '../lib/tenants.js';
 import { acceptHouseholdInvitation, createHouseholdInvitation, listHouseholdAccess, pendingHouseholdInvitations, revokeHouseholdInvitation } from '../lib/household-access.js';
 
 const jwksCache = { at: 0, keys: null };
@@ -34,9 +34,11 @@ async function fetchAsset(request, env, assetPath) {
 function json(data, status = 200) {
   return new Response(data === undefined ? null : JSON.stringify(data), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' }
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
   });
 }
+
+function noContent() { return new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } }); }
 
 async function readJson(request) {
   const raw = await request.text();
@@ -96,14 +98,17 @@ export async function handleRequest(request, env, ctx) {
       }
       if (request.method === 'GET' && pendingInvitation) return json(await pendingHouseholdInvitations(env.DB, principal));
       if (request.method === 'POST' && invitationAcceptance) return json(await acceptHouseholdInvitation(env.DB, principal, invitationAcceptance[1], undefined, requestId));
-      const tenant = await resolveTenant(env.DB, principal, env);
+      const tenant = await resolveTenant(env.DB, principal, { shopId: request.headers.get('x-shop-id') });
+      if (request.method === 'GET' && url.pathname === '/api/shops') {
+        return json({ shops: await listShops(env.DB, principal), activeShopId: tenant.householdId });
+      }
       if (request.method !== 'GET' && await migrationIsActive(env.DB)) return json({ error: 'Inventory is temporarily read-only while a migration is in progress.' }, 503);
       const invitation = url.pathname.match(/^\/api\/household\/invitations\/([^/]+)$/);
       if (request.method === 'GET' && url.pathname === '/api/household/access') return json(await listHouseholdAccess(env.DB, tenant));
       if (request.method === 'POST' && url.pathname === '/api/household/invitations') return json(await createHouseholdInvitation(env.DB, tenant, await readJson(request), undefined, requestId), 201);
       if (invitation && request.method === 'DELETE') {
         await revokeHouseholdInvitation(env.DB, tenant, invitation[1], requestId);
-        return new Response(null, { status: 204 });
+        return noContent();
       }
       const store = await getStore(env, tenant, principal);
       const match = url.pathname.match(/^\/api\/batches\/([^/]+)(?:\/(consume|discard|photo))?$/);
@@ -128,7 +133,7 @@ export async function handleRequest(request, env, ctx) {
       if (match && request.method === 'POST' && match[2] === 'consume') return json(await store.consume(match[1], await readJson(request)));
       if (match && request.method === 'POST' && match[2] === 'discard') {
         await store.discard(match[1], await readJson(request));
-        return new Response(null, { status: 204 });
+        return noContent();
       }
       if (match && request.method === 'GET' && match[2] === 'photo') {
         const key = await store.photoMeta(match[1]);
@@ -139,7 +144,7 @@ export async function handleRequest(request, env, ctx) {
         return new Response(object.body, {
           headers: {
             'content-type': photoTypes[ext] || 'application/octet-stream',
-            'cache-control': 'private, max-age=3600',
+            'cache-control': 'no-store',
             'x-content-type-options': 'nosniff'
           }
         });
@@ -147,12 +152,12 @@ export async function handleRequest(request, env, ctx) {
       if (request.method === 'GET' && url.pathname === '/api/notifications') return json(await store.notifications());
       if (request.method === 'POST' && url.pathname === '/api/notifications/read-all') {
         await store.readAll();
-        return new Response(null, { status: 204 });
+        return noContent();
       }
       const n = url.pathname.match(/^\/api\/notifications\/([^/]+)\/read$/);
       if (n && request.method === 'POST') {
         await store.read(n[1]);
-        return new Response(null, { status: 204 });
+        return noContent();
       }
       if (request.method === 'GET' && url.pathname === '/api/push/key') return json({ publicKey: store.vapid.publicKey });
       if (request.method === 'POST' && url.pathname === '/api/push/subscribe') {
@@ -162,7 +167,7 @@ export async function handleRequest(request, env, ctx) {
       }
       if (request.method === 'POST' && url.pathname === '/api/push/unsubscribe') {
         await store.removePushSubscription((await readJson(request)).endpoint);
-        return new Response(null, { status: 204 });
+        return noContent();
       }
       return json({ error: 'Not found' }, 404);
     } catch (error) {
