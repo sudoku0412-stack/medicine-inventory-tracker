@@ -63,13 +63,48 @@ Local development
 - Internal compatibility contracts intentionally remain household-scoped.
 - No data migration was needed for the terminology release.
 
-## Finalized, pending deployment: active multi-Shop context
+## Deployed: active multi-Shop context
 
 - A caller may have memberships in more than one Shop. `GET /api/shops` returns only that caller's Shop ids, names, and roles, plus the resolved active Shop id; it never returns another member's information.
 - The Worker resolves a membership context for every authenticated Shop-scoped request. An `X-Shop-Id` selector is accepted only for a current membership and is persisted as the caller's last explicit selection in `user_shop_preferences` (migration `0011_user_shop_preferences.sql`).
 - With no selector, resolution uses a still-valid saved selection, then a deterministic `LOWER(name), id` membership fallback. A stale preference is ignored rather than granting access.
 - Inventory, settings, notifications, push subscriptions, photos, and Shop access routes use that resolved context, so an id from another Shop cannot be read or mutated. Context and Shop API responses use `Cache-Control: no-store`.
 - This slice deliberately does not add a browser switcher, role changes, ownership transfer, or a redesign of invitation enrollment.
+
+## Finalized, pending implementation: Shop selector
+
+### Placement and responsive presentation
+
+- Shop switching lives in **Profile & settings**, immediately before the existing profile form. This reuses the desktop sidebar Shop card and the mobile **Profile** navigation item as the entry point instead of adding another primary-navigation destination.
+- When the caller has two or more memberships, show a card headed **Current Shop** with the description **Choose the Shop whose inventory and settings you want to use.** Its native select is labelled **Shop**. Each option is rendered as `<Shop name> — Owner` or `<Shop name> — Member`, in the order returned by `GET /api/shops`. Below it, repeat the active role as static text: **Your role: Owner** or **Your role: Member**.
+- The desktop sidebar card continues to show the active Shop name. Its second line becomes **Owner · Switch in Profile** or **Member · Switch in Profile**, and its accessible name includes the full active Shop name and role. Long names truncate visually only. On screens up to 760px, the sidebar remains hidden and the selector card is full width with a minimum 44px select target; users reach it through the existing bottom **Profile** item.
+- With exactly one membership, do not render a selector or switching card. Keep the sidebar card as a Profile link, use **Owner** or **Member** as its second line, and show the same role as non-interactive text in the existing **Shop** profile card. Local single-Shop mode remains unchanged and does not invent an owner/member role.
+
+### Loading, empty, and error copy
+
+- After onboarding confirms a membership, resolve Shop context before loading any Shop-scoped settings, inventory, notifications, access, push, or photo data. While resolving, keep the existing access gate visible with **Opening your Shop** and **Loading your Shop access…**; do not reveal stale Shop data underneath it.
+- A successful response must contain the declared `activeShopId` in `shops`. A missing/empty list or unmatched active id is a blocking safe state: **No Shop access found** / **This signed-in account does not currently belong to a Shop. Ask a Shop owner for an invitation, then try again.** Actions are **Retry** and **Sign out**.
+- A load failure is also blocking: **We couldn’t load your Shops** / **Your inventory has not been opened because the active Shop could not be confirmed.** Actions are **Retry** and **Sign out**. A local `404` from `/api/shops` retains the existing local single-Shop flow rather than showing this cloud-only error.
+
+### Switching behavior and accessibility
+
+- Changing the select is an explicit switch. If Profile has unsaved changes, first ask **Switch Shops and discard your unsaved profile changes?** Cancel restores the active option and focus to the select without making a request.
+- During a switch, disable the select, set its container `aria-busy="true"`, and announce **Switching to <Shop name>…** in a dedicated polite status region. Send `GET /api/shops` with `X-Shop-Id: <selected id>`; the returned `activeShopId` must equal the selection before treating it as confirmed.
+- On confirmation, reload the application to clear every prior Shop's in-memory inventory, notification, settings, access, modal, filter, and mutation-intent state. Preserve the `#profile` destination. After reload, focus the Shop select and announce **Switched to <Shop name>. Showing its inventory.** A session-scoped, one-use marker may carry only the focus/announcement intent and Shop name; it is not authority for the active id.
+- If the switch cannot be confirmed, restore the prior option, re-enable and focus the select, and announce **We couldn’t confirm the switch. Retry, or reload to check your active Shop.** Do not claim that the server preference is unchanged after an ambiguous network failure.
+- After initial resolution, keep the resolved id in memory and add `X-Shop-Id` to every Shop-scoped API request for the life of that page. Do not add it to pre-membership onboarding or invitation-discovery requests. This pins an open tab to its displayed Shop even if another tab changes the saved preference.
+- Use the native select's keyboard and assistive-technology behavior; do not build a custom menu. The visible label, role text, busy state, status region, and focus behavior must work at 200% zoom and with reduced motion.
+
+### Implementation acceptance criteria
+
+1. One-Shop cloud users and local users see no switching control; multi-Shop users see only their server-returned memberships and a clear Owner/Member label.
+2. No Shop-scoped request starts until `/api/shops` establishes a valid active membership, and subsequent scoped requests carry that active `X-Shop-Id`.
+3. A confirmed switch persists through the deployed API contract, clears old-Shop client state by reloading, and opens the selected Shop's Profile with focus and a polite announcement.
+4. Unsaved Profile edits cannot be discarded without confirmation; cancel and all failure paths leave a usable, focused control with explicit status text.
+5. Loading, malformed/empty, authorization, network, and retry states never expose inventory from an unconfirmed Shop. Automated coverage verifies header propagation, single-versus-multiple rendering, role copy, switch success/failure, dirty-form cancellation, local fallback, and cross-Shop data isolation.
+6. Desktop and mobile browser checks cover long Shop names, 320px width, 200% zoom, keyboard-only operation, visible focus, and screen-reader announcements.
+
+This chunk does not create another Shop, promote an admin, change roles, transfer ownership, remove members, or redesign invitations.
 
 ## Finalized, pending deployment: secure Shop administration onboarding
 
@@ -85,4 +120,4 @@ Local development
 
 - Pull/change feed and offline synchronization reconciliation.
 - Native mobile clients.
-- Export, account deletion, configurable reminder windows, ownership transfer, admin promotion, member removal, multi-Shop switching, and non-owner roster or pending-invitation visibility.
+- Export, account deletion, configurable reminder windows, creating another Shop, ownership transfer, admin promotion, member removal, and non-owner roster or pending-invitation visibility.

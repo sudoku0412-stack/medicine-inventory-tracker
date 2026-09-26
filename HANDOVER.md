@@ -183,6 +183,15 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - All resolved Shop API/context responses are `no-store`; inventory reads and mutations remain scoped by the resolved membership. No UI switcher, role administration, ownership transfer, or invitation-flow redesign was added.
 - PR #38 (`02dea4c`) was merged. Migration `0011_user_shop_preferences.sql` was applied successfully, followed by Worker version `1130cf23-51bd-4991-b096-26a138d733df`. A follow-up migration check reported no pending migrations, and the custom domain returned the expected Cloudflare Access HTTP 302 redirect.
 
+## Shop selector design (finalized; implementation pending)
+
+- The smallest selector is a **Current Shop** card at the start of **Profile & settings**, reached from the existing desktop Shop card or mobile **Profile** item. It uses a native labelled select and shows every returned option as `<Shop name> — Owner` or `<Shop name> — Member`; the active role is also visible outside the control.
+- Exactly one cloud membership gets no selector: the current role is static in the existing Shop profile card and sidebar. Local mode remains the existing single-Shop experience with no fabricated role. Multi-Shop sidebar copy identifies the current role and says **Switch in Profile**.
+- Returning members stay behind the access gate while `GET /api/shops` confirms an active membership. Empty, malformed, or failed context is blocking and offers **Retry** and **Sign out**; a local `404` preserves the local flow. Shop-scoped data must never load before context confirmation.
+- An explicit change is confirmed by `GET /api/shops` with `X-Shop-Id`, then the app reloads to clear all old-Shop client state. The selected id is pinned on subsequent Shop-scoped requests. Unsaved Profile changes require confirmation. Busy, success, and ambiguous-failure messages use a polite live region, and focus returns to the selector after cancellation, failure, or the successful reload.
+- Acceptance requires conditional one-versus-many rendering, role clarity, header propagation, dirty-form cancellation, safe loading/error states, old-state clearing, local fallback, and cross-Shop isolation tests, plus desktop/mobile checks at 320px, 200% zoom, keyboard-only, visible focus, long names, reduced motion, and screen-reader announcements. Exact copy and detailed criteria are in `ARCHITECTURE.md`.
+- Out of scope: creating another Shop, admin promotion or other role changes, ownership transfer, member removal, and invitation redesign.
+
 ## Secure Shop onboarding and administration foundation (deployed 2026-09-26)
 
 - Shop remains the visible product term; internal household tables and routes remain intact for deployed-client compatibility.
