@@ -59,3 +59,10 @@ Report the current hypothesis separately from confirmed facts. Give the user the
 - **Confirmed root cause:** the mobile dialog was bottom-sheet styled with `max-height: 92vh` and `margin: auto 0 0`; changing mobile browser chrome could recalculate that legacy viewport height and auto placement. A delayed name-field focus then initiated a second scroll. Dynamic photo preview changes were also eligible for scroll anchoring.
 - **Resolution:** use explicit fixed bottom placement and dynamic viewport sizing, contain dialog overscroll, disable scroll anchoring, reset the dialog’s scroll position after opening, and focus the name field with `preventScroll`.
 - **Regression coverage:** `test/mobile-medicine-dialog.test.js`; the expiry-date row is intentionally asserted unchanged in this narrowly scoped fix.
+
+## Incident: expiry-date row was unclear on mobile
+
+- **Report:** the expiry-date row did not match the intended medicine form on a phone and gave no clear way to record an unknown expiry.
+- **Confirmed source cause:** the form exposed only a bare optional date input. It omitted the product’s supported unknown-expiry choice and its explanatory text; the general form input rule would also make a later checkbox render at full field dimensions unless it was explicitly scoped.
+- **Resolution:** give the date input an explicit label and help text, pair it with a native labelled unknown-expiry checkbox, and scope checkbox dimensions independently from date fields. Selecting unknown clears and disables the date; edit, reset, and package-suggestion paths keep that state in sync. The existing form/unit choices and mobile dialog viewport rules remain in place.
+- **Regression coverage:** `test/expiry-date-field.test.js` asserts the state transitions; `test/mobile-medicine-dialog.test.js` now asserts the intended mobile expiry markup and checkbox sizing instead of the stale unchanged-row expectation.

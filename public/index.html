@@ -274,7 +274,12 @@
           </div>
           <div class="form-row">
             <label class="form-field"><span>Quantity <em>*</em></span><input name="quantity" type="number" min="1" placeholder="e.g. 20" required autocomplete="off" /><small class="field-error"></small></label>
-            <label class="form-field"><span>Expiry date</span><input name="expiry" type="date" autocomplete="off" /></label>
+            <div class="form-field expiry-field">
+              <label for="expiryDate">Expiry date</label>
+              <input id="expiryDate" name="expiry" type="date" autocomplete="off" aria-describedby="expiryDateHelp" />
+              <label class="expiry-unknown" for="expiryUnknown"><input id="expiryUnknown" name="expiry_unknown" type="checkbox" /><span>I don’t know the expiry date</span></label>
+              <small id="expiryDateHelp">Choose this when the package does not show an expiry date.</small>
+            </div>
           </div>
           <div class="form-row">
             <label class="form-field"><span>Unit <em>*</em></span><select name="unit" autocomplete="off"><option value="bottle">Bottle</option><option value="sachet">Sachet</option><option value="tube">Tube</option><option value="pack">Pack</option><option value="tablet">Tablet</option><option value="capsule">Capsule</option><option value="dose">Dose</option><option value="piece">Piece</option></select></label>
