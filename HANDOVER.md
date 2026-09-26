@@ -68,6 +68,11 @@ Migration `0005_household_invitations.sql` was applied to production D1 and the 
 
 ## Working agreement
 
+## Form and unit choice compatibility (2026-09-26)
+
+- New medicine entries distinguish a clinical **Form** (Tablets, Capsules, Liquid, Cream, Inhaler, Drops, Other) from a countable **Unit** (bottle, sachet, tube, pack, tablet, capsule, dose, piece).
+- No migration is needed: API validation continues to accept the pre-existing `Syrup` form and plural/`ml`/`units` unit values. When an old record is edited, its saved value is retained as a marked saved option rather than being silently rewritten; those saved-only options are removed before a new entry or another edit is opened.
+
 ## Identity-derived profile name (pending merge)
 
 - New household settings are seeded from the signed Cloudflare Access JWT `name`/`common_name` claim. If neither claim is present, they use a sanitized email local-part. Migration `0008_household_display_name_source.sql` marks all existing settings as user-owned—including any intentionally named “Kaushik”—and newly created settings as identity-seeded. The browser never supplies identity data.
