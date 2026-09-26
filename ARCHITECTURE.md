@@ -63,23 +63,18 @@ Local development
 - Internal compatibility contracts intentionally remain household-scoped.
 - No data migration was needed for the terminology release.
 
-## Planned next: secure Shop administration onboarding
+## Finalized, pending deployment: secure Shop administration onboarding
 
-This is a design, not deployed behavior.
-
-1. Keep the existing single-Shop model. The existing `owner` role is the administrator, presented as **Shop administration** in the UI.
-2. Replace automatic first-request ownership with an explicit onboarding check and explicit setup action. Only a verified identity on the configured initial-owner allowlist may set up the first Shop when the singleton bootstrap marker is absent.
-3. Once claimed, ownership binds to verified provider/subject. An uninvited user, another allowlisted address, or a matching email with another subject cannot take over the Shop.
-4. Add an append-only access-audit migration for bootstrap, invitation creation, acceptance, and revocation. Record actor, Shop, target, timestamp, and request correlation ID; never store JWTs or secrets.
-5. Start with Shop name, members/roles, pending invitations, invite, and revoke. Defer ownership transfer, admin promotion, member removal, account linking, and multi-Shop support.
-6. Recheck owner authorization and same-origin protections on every administration mutation. Test concurrent setup, forged identity input, expired/revoked invitations, cross-Shop isolation, and audit rollback.
-
-### Required decision before implementation
-
-Choose the verified Cloudflare Access account authorized to establish the initial Shop owner. For strongest protection, configure the provider/subject after observing that account’s authenticated login, in addition to its email allowlist.
+- The current product has one active Shop bootstrap singleton; its internal `households`, `memberships`, and household-scoped routes remain compatibility contracts, not a permanent one-Shop-per-user restriction. The memberships model supports a future multi-Shop design without migrating existing identities or inventory.
+- Cloudflare Access JWT verification produces the only identity accepted by the Shop access layer. Ordinary membership resolution is read-only.
+- Before membership resolution, `GET /api/shop/onboarding-status` returns only the caller’s membership state, pending-invitation flag, and setup eligibility. It never returns the configured allowlist or an allowlisted email.
+- `POST /api/shop/onboarding` is the sole explicit, atomic, idempotent initial-owner claim. It accepts Shop and display names, binds only the verified provider/subject, checks the normalized configured initial-owner allowlist, claims/backfills the singleton, and is never invoked on page load.
+- Migration `0010_access_audit.sql` records append-only bootstrap, invitation creation, acceptance, and revocation events in the corresponding state-change transaction. Events include the internal Shop identifier, actor, target identifier, timestamp, and request correlation ID; they deliberately exclude JWTs and secrets.
+- The browser gates unaffiliated authenticated users before loading inventory or cache-backed views: eligible owners receive explicit setup, invitees receive acceptance, and other users receive lock, retry, and sign-out guidance. Members see the current application; only owners see Shop-access controls.
+- Recheck owner authorization and same-origin protections on every administration mutation. Coverage includes concurrent setup, forged identity input, invitation expiry/revocation, cross-Shop isolation, and audit rollback.
 
 ## Deferred architecture work
 
 - Pull/change feed and offline synchronization reconciliation.
 - Native mobile clients.
-- Export, account deletion, configurable reminder windows, and broader multi-Shop sharing.
+- Export, account deletion, configurable reminder windows, ownership transfer, admin promotion, member removal, multi-Shop switching, and non-owner roster or pending-invitation visibility.

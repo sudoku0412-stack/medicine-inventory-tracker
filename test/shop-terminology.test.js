@@ -34,13 +34,13 @@ test('UI messages and surfaced errors say shop while internal contracts remain h
   assert.match(d1, /householdId/);
 });
 
-test('tenant bootstrap messages and default name say shop', () => {
+test('tenant onboarding messages say shop without reviving automatic bootstrap', () => {
   const tenants = read('lib/tenants.js');
 
   assert.match(tenants, /This account is not a member of a shop\./);
-  assert.match(tenants, /'My shop'/);
-  assert.match(tenants, /Shop setup is already in progress\./);
-  assert.doesNotMatch(tenants, /(?:This account is not a member of a household|Household setup is already in progress|['"]My household['"])/i);
+  assert.match(tenants, /Enter a Shop name up to 80 characters\./);
+  assert.match(tenants, /Shop setup is already complete\./);
+  assert.doesNotMatch(tenants, /(?:This account is not a member of a household|Household setup is already in progress|['"]My household['"]|['"]My shop['"])/i);
 
   // SQL identifiers and returned tenant fields remain household-scoped APIs.
   assert.match(tenants, /household_id/);

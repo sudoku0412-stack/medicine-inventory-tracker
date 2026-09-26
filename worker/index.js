@@ -8,7 +8,7 @@ import {
   visionConfig
 } from '../lib/shared.js';
 import { createD1Store, loadVapid } from '../lib/store-d1.js';
-import { resolveTenant } from '../lib/tenants.js';
+import { onboardingStatus, resolveTenant, setupInitialShop } from '../lib/tenants.js';
 import { acceptHouseholdInvitation, createHouseholdInvitation, listHouseholdAccess, pendingHouseholdInvitations, revokeHouseholdInvitation } from '../lib/household-access.js';
 
 const jwksCache = { at: 0, keys: null };
@@ -73,25 +73,36 @@ async function migrationIsActive(db) {
   try { return (await db.prepare("SELECT state FROM migration_runs WHERE singleton=1").first())?.state === 'active'; } catch { return false; }
 }
 
+function requestCorrelationId(request) {
+  const supplied = request.headers.get('cf-ray') || request.headers.get('x-request-id');
+  return typeof supplied === 'string' && /^[A-Za-z0-9._:-]{1,200}$/.test(supplied) ? supplied : crypto.randomUUID();
+}
+
 export async function handleRequest(request, env, ctx) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) {
     try {
       const principal = await ensureAccess(request, env);
+      const requestId = requestCorrelationId(request);
       // Invitation discovery/acceptance deliberately runs before resolveTenant:
       // an invited identity has no membership yet. Every other API remains
       // membership-gated below.
       const pendingInvitation = url.pathname === '/api/household/invitations/pending';
       const invitationAcceptance = url.pathname.match(/^\/api\/household\/invitations\/([^/]+)\/accept$/);
+      if (request.method === 'GET' && url.pathname === '/api/shop/onboarding-status') return json(await onboardingStatus(env.DB, principal, env));
+      if (request.method === 'POST' && url.pathname === '/api/shop/onboarding') {
+        const setup = await setupInitialShop(env.DB, principal, env, await readJson(request), { requestId });
+        return json(setup, setup.created ? 201 : 200);
+      }
       if (request.method === 'GET' && pendingInvitation) return json(await pendingHouseholdInvitations(env.DB, principal));
-      if (request.method === 'POST' && invitationAcceptance) return json(await acceptHouseholdInvitation(env.DB, principal, invitationAcceptance[1]));
+      if (request.method === 'POST' && invitationAcceptance) return json(await acceptHouseholdInvitation(env.DB, principal, invitationAcceptance[1], undefined, requestId));
       const tenant = await resolveTenant(env.DB, principal, env);
       if (request.method !== 'GET' && await migrationIsActive(env.DB)) return json({ error: 'Inventory is temporarily read-only while a migration is in progress.' }, 503);
       const invitation = url.pathname.match(/^\/api\/household\/invitations\/([^/]+)$/);
       if (request.method === 'GET' && url.pathname === '/api/household/access') return json(await listHouseholdAccess(env.DB, tenant));
-      if (request.method === 'POST' && url.pathname === '/api/household/invitations') return json(await createHouseholdInvitation(env.DB, tenant, await readJson(request)), 201);
+      if (request.method === 'POST' && url.pathname === '/api/household/invitations') return json(await createHouseholdInvitation(env.DB, tenant, await readJson(request), undefined, requestId), 201);
       if (invitation && request.method === 'DELETE') {
-        await revokeHouseholdInvitation(env.DB, tenant, invitation[1]);
+        await revokeHouseholdInvitation(env.DB, tenant, invitation[1], requestId);
         return new Response(null, { status: 204 });
       }
       const store = await getStore(env, tenant, principal);

@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { handleRequest } from '../worker/index.js';
 import { createHouseholdInvitation } from '../lib/household-access.js';
-import { resolveTenant } from '../lib/tenants.js';
+import { setupInitialShop } from '../lib/tenants.js';
 
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'invite-key', alg: 'RS256', use: 'sig' };
@@ -22,14 +22,31 @@ function d1(sqlite) {
 }
 function database() {
   const sqlite = new DatabaseSync(':memory:');
-  for (const migration of ['0001_initial.sql', '0003_profile_settings.sql', '0004_household_tenants.sql', '0005_household_invitations.sql', '0006_household_invitation_expiration.sql', '0007_sync_mutation_foundation.sql', '0008_household_display_name_source.sql', '0009_seed_legacy_household_display_names.sql']) sqlite.exec(readFileSync(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
+  for (const migration of ['0001_initial.sql', '0003_profile_settings.sql', '0004_household_tenants.sql', '0005_household_invitations.sql', '0006_household_invitation_expiration.sql', '0007_sync_mutation_foundation.sql', '0008_household_display_name_source.sql', '0009_seed_legacy_household_display_names.sql', '0010_access_audit.sql']) sqlite.exec(readFileSync(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
   return { sqlite, db: d1(sqlite) };
 }
 function request(path, token, method = 'GET') { return new Request(`https://medicineinventory.craftloop.ca${path}`, { method, headers: { 'Cf-Access-Jwt-Assertion': token, ...(method === 'POST' ? { 'content-type': 'application/json' } : {}) }, body: method === 'POST' ? '{}' : undefined }); }
 
+test('Shop onboarding status is read-only and explicit setup creates the verified owner', async () => {
+  const { sqlite, db } = database();
+  const env = { DB: db, ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com', ACCESS_AUD: 'medicine-audience', INITIAL_OWNER_EMAILS: 'kmaz285@gmail.com', KV: { get: async () => null, put: async () => {} }, PHOTOS: {} };
+  const originalFetch = globalThis.fetch; globalThis.fetch = async () => new Response(JSON.stringify({ keys: [jwk] }), { status: 200 });
+  try {
+    const token = jwt({ subject: 'first-owner', email: 'kmaz285@gmail.com' });
+    const status = await handleRequest(request('/api/shop/onboarding-status', token), env, { waitUntil() {} });
+    assert.deepEqual(await status.json(), { membership: null, pendingInvitation: false, setupEligible: true });
+    assert.equal(sqlite.prepare('SELECT count(*) AS n FROM tenant_bootstrap').get().n, 0);
+    const setupRequest = new Request('https://medicineinventory.craftloop.ca/api/shop/onboarding', { method: 'POST', headers: { 'Cf-Access-Jwt-Assertion': token, 'content-type': 'application/json', 'cf-ray': 'test-correlation' }, body: JSON.stringify({ shopName: 'Mendicie', displayName: 'Kaushik' }) });
+    const setup = await handleRequest(setupRequest, env, { waitUntil() {} });
+    assert.equal(setup.status, 201);
+    assert.equal((await setup.json()).role, 'owner');
+    assert.equal(sqlite.prepare("SELECT request_id FROM access_audit WHERE event='bootstrap'").get().request_id, 'test-correlation');
+  } finally { globalThis.fetch = originalFetch; sqlite.close(); }
+});
+
 test('pending and accept API routes run before membership resolution but retain signed JWT enforcement', async () => {
   const { sqlite, db } = database();
-  const owner = await resolveTenant(db, { provider: 'cloudflare_access', subject: 'owner', email: 'owner@example.test' }, { INITIAL_OWNER_EMAILS: 'owner@example.test' });
+  const owner = await setupInitialShop(db, { provider: 'cloudflare_access', subject: 'owner', email: 'owner@example.test' }, { INITIAL_OWNER_EMAILS: 'owner@example.test' }, { displayName: 'Owner', shopName: 'Test Shop' });
   const invitation = await createHouseholdInvitation(db, owner, { email: 'invitee@example.test' });
   const env = { DB: db, ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com', ACCESS_AUD: 'medicine-audience', INITIAL_OWNER_EMAILS: 'owner@example.test', KV: { get: async () => null, put: async () => {} }, PHOTOS: {} };
   const originalFetch = globalThis.fetch;

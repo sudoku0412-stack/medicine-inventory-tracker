@@ -2,10 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { bootstrapEmails, resolveTenant } from '../lib/tenants.js';
+import { bootstrapEmails, onboardingStatus, resolveTenant as lookupTenant, setupInitialShop } from '../lib/tenants.js';
 import { createD1Store } from '../lib/store-d1.js';
 import { createVapidKeys } from '../lib/shared.js';
 import { acceptHouseholdInvitation, createHouseholdInvitation, listHouseholdAccess, pendingHouseholdInvitations, revokeHouseholdInvitation } from '../lib/household-access.js';
+
+// Older tenant tests need a member fixture; production membership lookup stays
+// read-only and setup is always made explicit by this test helper.
+async function resolveTenant(db, principal, env, now) {
+  const result = await setupInitialShop(db, principal, env, { displayName: 'Test Owner', shopName: 'Test Shop' }, now ? { now } : undefined);
+  const { created, ...tenant } = result;
+  return tenant;
+}
 
 function d1(sqlite) {
   const statement = sql => {
@@ -33,6 +41,7 @@ function tenantDatabase(displayName = 'Legacy', { compatibilityMigration = true 
   sqlite.exec(readFileSync(new URL('../migrations/0007_sync_mutation_foundation.sql', import.meta.url), 'utf8'));
   sqlite.exec(readFileSync(new URL('../migrations/0008_household_display_name_source.sql', import.meta.url), 'utf8'));
   if (compatibilityMigration) sqlite.exec(readFileSync(new URL('../migrations/0009_seed_legacy_household_display_names.sql', import.meta.url), 'utf8'));
+  sqlite.exec(readFileSync(new URL('../migrations/0010_access_audit.sql', import.meta.url), 'utf8'));
   sqlite.prepare('INSERT INTO profile_settings VALUES (1,?,?,?,?)').run(displayName, 'Legacy house', 'Medicine cabinet', '2026-01-01T00:00:00.000Z');
   sqlite.prepare("INSERT INTO batches (id,name,strength,form,quantity,unit,expiry_date,location,notes,low_stock_threshold,created_at,updated_at) VALUES ('legacy','Medicine','','Tablets',2,'tablets',NULL,'','',1,'2026-01-01','2026-01-01')").run();
   return { sqlite, db: d1(sqlite) };
@@ -45,10 +54,27 @@ test('only an explicit configured owner can bootstrap legacy rows', async () => 
   const owner = await resolveTenant(db, { provider: 'cloudflare_access', subject: 'owner-subject', email: 'owner@example.test' }, env, () => '2026-01-02T00:00:00.000Z');
   assert.equal(sqlite.prepare("SELECT household_id FROM batches WHERE id='legacy'").get().household_id, owner.householdId);
   assert.equal(sqlite.prepare('SELECT household_id FROM household_settings').get().household_id, owner.householdId);
-  assert.equal(sqlite.prepare('SELECT display_name FROM household_settings').get().display_name, 'Legacy');
+  assert.equal(sqlite.prepare('SELECT display_name FROM household_settings').get().display_name, 'Test Owner');
   const repeat = await resolveTenant(db, { provider: 'cloudflare_access', subject: 'owner-subject', email: 'owner@example.test' }, env);
   assert.deepEqual(repeat, owner);
   await assert.rejects(() => resolveTenant(db, { provider: 'cloudflare_access', subject: 'second', email: 'owner@example.test' }, env), { status: 403 });
+  sqlite.close();
+});
+
+test('onboarding status is read-only and explicit setup binds the verified identity with an audit record', async () => {
+  const { sqlite, db } = tenantDatabase();
+  const principal = { provider: 'cloudflare_access', subject: 'verified-subject', email: 'KMAZ285@gmail.com' };
+  const env = { INITIAL_OWNER_EMAILS: 'kmaz285@gmail.com' };
+  assert.deepEqual(await onboardingStatus(db, principal, env), { membership: null, pendingInvitation: false, setupEligible: true });
+  assert.equal(sqlite.prepare('SELECT count(*) AS n FROM tenant_bootstrap').get().n, 0);
+  const setup = await setupInitialShop(db, principal, env, { displayName: 'Kaushik', shopName: 'Mendicie' }, { requestId: 'req-setup', now: () => '2026-09-26T00:00:00.000Z' });
+  assert.equal(setup.role, 'owner');
+  assert.equal(sqlite.prepare('SELECT email FROM identities WHERE user_id=?').get(setup.userId).email, 'kmaz285@gmail.com');
+  const audit = sqlite.prepare('SELECT event,actor_user_id,target_identifier,request_id FROM access_audit').get();
+  assert.equal(audit.event, 'bootstrap'); assert.equal(audit.actor_user_id, setup.userId); assert.equal(audit.target_identifier, 'cloudflare_access:verified-subject'); assert.equal(audit.request_id, 'req-setup');
+  assert.deepEqual(await onboardingStatus(db, principal, env), { membership: { role: 'owner' }, pendingInvitation: false, setupEligible: false });
+  assert.equal((await setupInitialShop(db, principal, env, { displayName: 'Ignored', shopName: 'Ignored' })).created, false);
+  await assert.rejects(() => lookupTenant(db, { provider: 'cloudflare_access', subject: 'outsider', email: 'outsider@example.test' }), { status: 403 });
   sqlite.close();
 });
 
@@ -57,8 +83,8 @@ test('verified identity display names seed legacy settings, preserve user edits 
   const owner = await resolveTenant(db, { provider: 'cloudflare_access', subject: 'owner', email: 'owner@example.test' }, { INITIAL_OWNER_EMAILS: 'owner@example.test' });
   const photos = { put: async () => {}, delete: async () => {} };
   const ownerStore = createD1Store(db, photos, { publicKey: 'test' }, { ...owner, displayName: 'Owner Name' });
-  assert.equal((await ownerStore.settings()).display_name, 'Owner Name');
-  assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'identity_seed');
+  assert.equal((await ownerStore.settings()).display_name, 'Test Owner');
+  assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'user');
   await ownerStore.updateSettings({ display_name: 'Kaushik', household_name: 'Legacy house', default_storage_location: 'Medicine cabinet' });
   assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'user');
 
@@ -83,6 +109,7 @@ test('0009 reclassifies legacy markers globally, seeds Sudoku once, preserves la
   sqlite.prepare("INSERT INTO memberships VALUES ('other-household','other-user','owner','now')").run();
   sqlite.prepare("INSERT INTO household_settings (household_id,display_name,household_name,default_storage_location,updated_at,display_name_source) VALUES ('other-household','Chosen Name','Other','Medicine cabinet','now','user')").run();
   sqlite.exec(readFileSync(new URL('../migrations/0009_seed_legacy_household_display_names.sql', import.meta.url), 'utf8'));
+  sqlite.exec(readFileSync(new URL('../migrations/0010_access_audit.sql', import.meta.url), 'utf8'));
   assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'default');
   const otherBeforeSeed = sqlite.prepare("SELECT display_name,display_name_source FROM household_settings WHERE household_id='other-household'").get();
   assert.equal(otherBeforeSeed.display_name, 'Chosen Name');
@@ -112,7 +139,7 @@ test('a losing bootstrap contention becomes a denial without issuing partial row
         first: async () => sql.includes('tenant_bootstrap') && ++markerReads > 1 ? { household_id: 'winner' } : undefined
       };
     },
-    batch: async statements => { batches += 1; assert.equal(statements.length, 9); throw new Error('UNIQUE constraint failed: tenant_bootstrap.singleton'); }
+    batch: async statements => { batches += 1; assert.equal(statements.length, 10); throw new Error('UNIQUE constraint failed: tenant_bootstrap.singleton'); }
   };
   await assert.rejects(() => resolveTenant(db, { provider: 'cloudflare_access', subject: 'loser', email: 'owner@example.test' }, { INITIAL_OWNER_EMAILS: 'owner@example.test' }), { status: 403 });
   assert.equal(batches, 1);
@@ -246,6 +273,10 @@ test('only owners can list, create, and revoke household invitations', async () 
   await assert.rejects(() => revokeHouseholdInvitation(db, member, created.id), { status: 403 });
   await revokeHouseholdInvitation(db, owner, created.id);
   assert.equal((await listHouseholdAccess(db, owner)).invitations.length, 0);
+  assert.deepEqual(sqlite.prepare("SELECT event,target_identifier FROM access_audit WHERE event LIKE 'invite_%'").all().map(row => ({ ...row })).sort((a,b) => a.event.localeCompare(b.event)), [
+    { event: 'invite_created', target_identifier: 'new@example.test' },
+    { event: 'invite_revoked', target_identifier: 'new@example.test' }
+  ]);
   sqlite.close();
 });
 
@@ -272,13 +303,14 @@ test('a verified unaffiliated identity can explicitly accept its matching unexpi
   const invitation = await createHouseholdInvitation(db, owner, { email: 'invitee@example.test' }, () => '2026-02-01T00:00:00.000Z');
   const principal = { provider: 'cloudflare_access', subject: 'invitee-subject', email: 'INVITEE@example.test' };
   const pending = await pendingHouseholdInvitations(db, principal, () => '2026-02-02T00:00:00.000Z');
-  assert.deepEqual(pending.invitations.map(({ id, household_id, household_name, role, expires_at }) => ({ id, household_id, household_name, role, expires_at })), [{ id: invitation.id, household_id: owner.householdId, household_name: 'My shop', role: 'member', expires_at: '2026-02-08T00:00:00.000Z' }]);
+  assert.deepEqual(pending.invitations.map(({ id, household_id, household_name, role, expires_at }) => ({ id, household_id, household_name, role, expires_at })), [{ id: invitation.id, household_id: owner.householdId, household_name: 'Test Shop', role: 'member', expires_at: '2026-02-08T00:00:00.000Z' }]);
   const accepted = await acceptHouseholdInvitation(db, principal, invitation.id, () => '2026-02-02T00:00:00.000Z');
   assert.equal(accepted.householdId, owner.householdId);
   const identity = sqlite.prepare("SELECT user_id,email FROM identities WHERE provider='cloudflare_access' AND subject='invitee-subject'").get();
   assert.equal(identity.email, 'invitee@example.test');
   assert.equal(sqlite.prepare('SELECT role FROM memberships WHERE household_id=? AND user_id=?').get(owner.householdId, identity.user_id).role, 'member');
   assert.equal(sqlite.prepare('SELECT id FROM household_invitations WHERE id=?').get(invitation.id), undefined);
+  assert.equal(sqlite.prepare("SELECT event FROM access_audit WHERE event='invite_accepted'").get().event, 'invite_accepted');
   await assert.rejects(() => acceptHouseholdInvitation(db, principal, invitation.id), { status: 409 });
   sqlite.close();
 });
