@@ -156,6 +156,7 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - The expiry field now uses a compact 44px mobile control consistent with the adjacent medicine fields. Safari’s visible native calendar indicator is hidden, while the native date input, keyboard behavior, and assistive-technology semantics remain available.
 - The unknown-expiry checkbox and package-suggestion flows are unchanged. `test/mobile-medicine-dialog.test.js` guards the compact class and indicator rule.
 - PR #34 was merged and deployed to `medicineinventory.craftloop.ca` as Worker version `dd57709e-00d9-4295-9c6e-b77d3b06e56e`. The remote D1 ledger reported no pending migrations, and the custom domain returned the expected Cloudflare Access HTTP 302 redirect.
+- Follow-up evidence from the production iPhone showed the icon was removed but the native input remained oversized. The next patch replaces the ineffective minimum-only rule with a scoped iOS appearance reset and strict 44px physical/logical height bounds. Do not mark the incident closed until the reporter confirms the deployed field on the original device.
 
 ## Shop terminology follow-up (2026-09-26)
 
