@@ -32,3 +32,9 @@
 ## Working agreement
 
 Do not launch Cursor cloud agents for this project. Do not re-fix item 1 unless a regression is found.
+
+## Greeting follow-up (2026-09-25)
+
+- The dashboard greeting now derives from the browser's local hour: night (21:00–04:59), morning (05:00–11:59), afternoon (12:00–16:59), and evening (17:00–20:59). The displayed name remains unchanged.
+- `public/greeting.js` keeps the time classification pure and explicit; regression coverage passes fixed local-hour values for every boundary, avoiding dependence on the test machine clock or timezone.
+- The greeting module is included in the shared public-asset allowlist for both local and Worker serving. A Worker route-level regression test verifies `/greeting.js` reaches the asset binding.

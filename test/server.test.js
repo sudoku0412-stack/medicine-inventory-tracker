@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createStore, statusFor, suggestionFromModel, parseModelJson, parseDataUrl, MAX_PHOTO_BYTES, app, suggestFromPhoto, createVapidKeys, createVapidJwt, verifyVapidJwt } from '../server.js';
+import { greetingForTime } from '../public/greeting.js';
+import { handleRequest } from '../worker/index.js';
 
 const fixed = () => new Date('2028-02-01T12:00:00Z');
 function fresh() {
@@ -220,4 +222,30 @@ test('app.js parses', () => {
   const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'app.js');
   const result = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
+});
+
+test('greeting changes at local-time boundaries', () => {
+  const localTime = hour => new Date(2028, 0, 1, hour, 0, 0);
+  [
+    [0, 'Good night'], [4, 'Good night'],
+    [5, 'Good morning'], [11, 'Good morning'],
+    [12, 'Good afternoon'], [16, 'Good afternoon'],
+    [17, 'Good evening'], [20, 'Good evening'],
+    [21, 'Good night'], [23, 'Good night']
+  ].forEach(([hour, expected]) => assert.equal(greetingForTime(localTime(hour)), expected));
+});
+
+test('worker serves the greeting module as a public asset', async () => {
+  let assetUrl;
+  const response = await handleRequest(new Request('https://tracker.example/greeting.js'), {
+    ASSETS: {
+      fetch: async request => {
+        assetUrl = String(request);
+        return new Response('export function greetingForTime() {}', { headers: { 'content-type': 'text/javascript' } });
+      }
+    }
+  }, { waitUntil() {} });
+  assert.equal(response.status, 200);
+  assert.equal(assetUrl, 'https://tracker.example/greeting.js');
+  assert.match(await response.text(), /greetingForTime/);
 });
