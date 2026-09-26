@@ -167,11 +167,12 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - `ARCHITECTURE.md` is the living system-design reference. It distinguishes deployed architecture from finalized-but-not-yet-deployed decisions and should be updated whenever a material architecture decision is finalized.
 - It records the finalized, pending-deployment secure Shop-administration onboarding foundation and future multi-Shop direction.
 
-## Secure Shop onboarding and administration foundation (pending deployment)
+## Secure Shop onboarding and administration foundation (deployed 2026-09-26)
 
 - Shop remains the visible product term; internal household tables and routes remain intact for deployed-client compatibility.
 - Ordinary authenticated membership resolution is read-only. `GET /api/shop/onboarding-status` is callable before membership resolution and exposes only the caller’s membership state, pending-invitation flag, and setup eligibility; it never exposes `INITIAL_OWNER_EMAILS` or an allowlisted email.
-- `POST /api/shop/onboarding` is the explicit, atomic, idempotent first-owner claim. It accepts Shop/display names, binds only the verified Cloudflare Access provider/subject, claims/backfills the singleton safely, and is never invoked on page load. Production’s configured first-owner email is `kmaz285@gmail.com` through the existing `INITIAL_OWNER_EMAILS` secret.
+- `POST /api/shop/onboarding` is the explicit, atomic, idempotent first-owner claim. It accepts Shop/display names, binds only the verified Cloudflare Access provider/subject, claims/backfills the singleton safely, and is never invoked on page load. The production first-owner allowlist is configured only through the `INITIAL_OWNER_EMAILS` secret.
 - Additive migration `0010_access_audit.sql` records bootstrap, invitation creation, acceptance, and revocation in the same transaction as each state change where applicable. It stores actor, internal Shop id, target identifier, timestamp, and correlation ID—never Access JWTs or other secrets.
 - The app gates unaffiliated authenticated users before loading inventory/cache-backed views: an eligible owner receives explicit setup; invitees receive acceptance; other users receive lock, retry, and sign-out guidance. Members see the current app and only owners see Shop access controls.
 - Deliberate deferrals: ownership transfer, admin promotion, member removal, multi-Shop switching, and non-owner roster/pending-invitation visibility. The singleton bootstrap does not add a permanent one-Shop-per-user rule; the memberships schema remains suitable for a later multi-Shop design.
+- Production migration `0010_access_audit.sql` was applied before deploying Worker version `afc911c5-8588-458d-b036-7fbac4f6a5bc`. The remote migration ledger then reported no pending migrations, and unauthenticated custom-domain verification returned the expected Cloudflare Access HTTP 302 redirect.
