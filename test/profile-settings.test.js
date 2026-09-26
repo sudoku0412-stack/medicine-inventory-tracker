@@ -22,7 +22,7 @@ test('profile settings persist separately from medicine data and validate their 
     assert.deepEqual(saved, { display_name: 'Asha Patel', household_name: 'Patel home', default_storage_location: 'Refrigerator' });
     assert.equal(store.get(batch.id).location, 'Cabinet');
     assert.throws(() => store.updateSettings({ ...saved, display_name: '' }), /Display name/);
-    assert.throws(() => store.updateSettings({ ...saved, household_name: 'x'.repeat(81) }), /Household name/);
+    assert.throws(() => store.updateSettings({ ...saved, household_name: 'x'.repeat(81) }), /Shop name/);
     assert.throws(() => store.updateSettings({ ...saved, default_storage_location: 'Garage' }), /default storage location/i);
     store.close();
     const reopened = createStore(join(dir, 'db.sqlite'), fixed);

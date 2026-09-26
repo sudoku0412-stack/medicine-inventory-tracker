@@ -41,7 +41,7 @@ function profileText(value, label, max) {
 
 function normalizeSettings(data) {
   const display_name = profileText(data.display_name, 'Display name', 60);
-  const household_name = profileText(data.household_name, 'Household name', 80);
+  const household_name = profileText(data.household_name, 'Shop name', 80);
   const default_storage_location = typeof data.default_storage_location === 'string' ? data.default_storage_location.trim() : '';
   if (!storageLocations.has(default_storage_location)) throw Object.assign(new Error('Choose a valid default storage location.'), { status: 400 });
   return { display_name, household_name, default_storage_location };

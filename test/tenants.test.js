@@ -272,7 +272,7 @@ test('a verified unaffiliated identity can explicitly accept its matching unexpi
   const invitation = await createHouseholdInvitation(db, owner, { email: 'invitee@example.test' }, () => '2026-02-01T00:00:00.000Z');
   const principal = { provider: 'cloudflare_access', subject: 'invitee-subject', email: 'INVITEE@example.test' };
   const pending = await pendingHouseholdInvitations(db, principal, () => '2026-02-02T00:00:00.000Z');
-  assert.deepEqual(pending.invitations.map(({ id, household_id, household_name, role, expires_at }) => ({ id, household_id, household_name, role, expires_at })), [{ id: invitation.id, household_id: owner.householdId, household_name: 'My household', role: 'member', expires_at: '2026-02-08T00:00:00.000Z' }]);
+  assert.deepEqual(pending.invitations.map(({ id, household_id, household_name, role, expires_at }) => ({ id, household_id, household_name, role, expires_at })), [{ id: invitation.id, household_id: owner.householdId, household_name: 'My shop', role: 'member', expires_at: '2026-02-08T00:00:00.000Z' }]);
   const accepted = await acceptHouseholdInvitation(db, principal, invitation.id, () => '2026-02-02T00:00:00.000Z');
   assert.equal(accepted.householdId, owner.householdId);
   const identity = sqlite.prepare("SELECT user_id,email FROM identities WHERE provider='cloudflare_access' AND subject='invitee-subject'").get();

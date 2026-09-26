@@ -150,3 +150,8 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - PR #27 (`6815df4`, “Restore accessible expiry date controls”) is merged and deployed to `medicineinventory.craftloop.ca`.
 - Worker version: `144978e3-3fc7-45b0-99e0-e294c03496b7`.
 - Remote D1 status reported no pending migrations; unauthenticated custom-domain verification returned the expected Cloudflare Access HTTP 302 redirect.
+
+## Shop terminology follow-up (2026-09-26)
+
+- User-facing product language now calls the shared inventory a **Shop** across the public UI, invitation/access flow, profile validation, and surfaced authentication, membership, and push-subscription errors.
+- Database tables and fields, API routes, internal DOM hooks, migration names, and invitation payload contracts intentionally remain `household`-scoped for compatibility. `test/shop-terminology.test.js` guards the rendered copy and user-facing messages while explicitly checking those internal contracts remain unchanged.
