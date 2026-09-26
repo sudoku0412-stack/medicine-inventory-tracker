@@ -59,3 +59,10 @@ test('profile provides a same-origin Cloudflare Access sign-out action', () => {
   assert.match(page, /href="\/cdn-cgi\/access\/logout">Sign out<\/a>/);
   assert.match(page, /Sign out of Cloudflare Access on this device\./);
 });
+
+test('browser applies the server-provided display name to the greeting and profile', () => {
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.match(app, /api\('\/api\/settings'\)/);
+  assert.match(app, /applySettings\(profile\)/);
+  assert.match(app, /dashboardGreeting.*Good morning, \$\{name\}/);
+});

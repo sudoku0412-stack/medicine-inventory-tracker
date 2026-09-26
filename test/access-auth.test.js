@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { requireCloudflareAccess } from '../lib/shared.js';
+import { displayNameFromAccessClaims, requireCloudflareAccess } from '../lib/shared.js';
 
 const env = { ACCESS_TEAM_DOMAIN: 'team.cloudflareaccess.com', ACCESS_AUD: 'medicine-audience' };
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -25,6 +25,12 @@ test('Access JWT verification rejects forged, wrong issuer/audience, expired, an
 });
 
 test('Access JWT verification returns only a verified principal', async () => {
-  const principal = await requireCloudflareAccess(source(token()), { env, keys: [jwk], now: Date.now });
-  assert.deepEqual(principal, { provider: 'cloudflare_access', subject: 'access-subject', email: 'owner@example.test' });
+  const principal = await requireCloudflareAccess(source(token({ name: '  Asha   Patel ' })), { env, keys: [jwk], now: Date.now });
+  assert.deepEqual(principal, { provider: 'cloudflare_access', subject: 'access-subject', email: 'owner@example.test', displayName: 'Asha Patel' });
+});
+
+test('display names use verified claims and have an email-only fallback', () => {
+  assert.equal(displayNameFromAccessClaims({ name: 'Mina Rao', email: 'ignored@example.test' }), 'Mina Rao');
+  assert.equal(displayNameFromAccessClaims({ common_name: 'Mina Rao', email: 'ignored@example.test' }), 'Mina Rao');
+  assert.equal(displayNameFromAccessClaims({ email: 'mina.rao+tracker@example.test' }), 'mina.rao tracker');
 });

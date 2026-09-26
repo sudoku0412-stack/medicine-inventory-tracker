@@ -64,9 +64,9 @@ async function ensureAccess(request, env) {
   return requireCloudflareAccess(request, { env, now: Date.now, keys });
 }
 
-async function getStore(env, tenant) {
+async function getStore(env, tenant, principal) {
   const vapid = await loadVapid(env.KV, env);
-  return createD1Store(env.DB, env.PHOTOS, vapid, tenant);
+  return createD1Store(env.DB, env.PHOTOS, vapid, { ...tenant, displayName: principal?.displayName });
 }
 
 async function migrationIsActive(db) {
@@ -94,7 +94,7 @@ export async function handleRequest(request, env, ctx) {
         await revokeHouseholdInvitation(env.DB, tenant, invitation[1]);
         return new Response(null, { status: 204 });
       }
-      const store = await getStore(env, tenant);
+      const store = await getStore(env, tenant, principal);
       const match = url.pathname.match(/^\/api\/batches\/([^/]+)(?:\/(consume|discard|photo))?$/);
       if (request.method === 'GET' && url.pathname === '/api/settings') return json(await store.settings());
       if (request.method === 'PATCH' && url.pathname === '/api/settings') return json(await store.updateSettings(await readJson(request)));
