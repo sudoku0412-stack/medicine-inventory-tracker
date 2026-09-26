@@ -64,5 +64,5 @@ test('browser applies the server-provided display name to the greeting and profi
   const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
   assert.match(app, /api\('\/api\/settings'\)/);
   assert.match(app, /applySettings\(profile\)/);
-  assert.match(app, /dashboardGreeting.*Good morning, \$\{name\}/);
+  assert.match(app, /dashboardGreeting.*greetingForTime\(new Date\(\)\).*\$\{name\}/);
 });

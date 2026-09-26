@@ -52,3 +52,10 @@ Report the current hypothesis separately from confirmed facts. Give the user the
 - **Resolution:** the user explicitly accepted a one-time global compatibility reseed. Migration 0009 reclassifies every pre-0009 `user` marker to `default`, including `Sudoku`, because the prior schema has no audit marker separating inherited/default rows from historical explicit saves. Each household receives at most one verified-identity seed when its settings are next read; the cloud store then records `identity_seed`. Bootstrap copies are also marked `default`. A subsequent settings PATCH records `user` and is preserved.
 - **Safety boundary:** no edge email header or browser identity value is used. The seed comes only from a validated Access JWT claim, with its sanitized verified-email local-part as fallback.
 - **Regression coverage:** tenant tests cover `Sudoku` to `Kaushik Sudesna`, future explicit-edit preservation across a later identity change, and another household retaining its selected name. Apply 0009 before the Worker and perform an authenticated production Profile/greeting check.
+
+## Incident: mobile medicine form jumps on open
+
+- **Report:** the Add medicine and Edit medicine form could jump outside the phone viewport, then snap back.
+- **Confirmed root cause:** the mobile dialog was bottom-sheet styled with `max-height: 92vh` and `margin: auto 0 0`; changing mobile browser chrome could recalculate that legacy viewport height and auto placement. A delayed name-field focus then initiated a second scroll. Dynamic photo preview changes were also eligible for scroll anchoring.
+- **Resolution:** use explicit fixed bottom placement and dynamic viewport sizing, contain dialog overscroll, disable scroll anchoring, reset the dialog’s scroll position after opening, and focus the name field with `preventScroll`.
+- **Regression coverage:** `test/mobile-medicine-dialog.test.js`; the expiry-date row is intentionally asserted unchanged in this narrowly scoped fix.
