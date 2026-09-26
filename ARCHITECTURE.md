@@ -63,6 +63,14 @@ Local development
 - Internal compatibility contracts intentionally remain household-scoped.
 - No data migration was needed for the terminology release.
 
+## Finalized, pending deployment: active multi-Shop context
+
+- A caller may have memberships in more than one Shop. `GET /api/shops` returns only that caller's Shop ids, names, and roles, plus the resolved active Shop id; it never returns another member's information.
+- The Worker resolves a membership context for every authenticated Shop-scoped request. An `X-Shop-Id` selector is accepted only for a current membership and is persisted as the caller's last explicit selection in `user_shop_preferences` (migration `0011_user_shop_preferences.sql`).
+- With no selector, resolution uses a still-valid saved selection, then a deterministic `LOWER(name), id` membership fallback. A stale preference is ignored rather than granting access.
+- Inventory, settings, notifications, push subscriptions, photos, and Shop access routes use that resolved context, so an id from another Shop cannot be read or mutated. Context and Shop API responses use `Cache-Control: no-store`.
+- This slice deliberately does not add a browser switcher, role changes, ownership transfer, or a redesign of invitation enrollment.
+
 ## Finalized, pending deployment: secure Shop administration onboarding
 
 - The current product has one active Shop bootstrap singleton; its internal `households`, `memberships`, and household-scoped routes remain compatibility contracts, not a permanent one-Shop-per-user restriction. The memberships model supports a future multi-Shop design without migrating existing identities or inventory.

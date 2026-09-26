@@ -42,6 +42,7 @@ function tenantDatabase(displayName = 'Legacy', { compatibilityMigration = true 
   sqlite.exec(readFileSync(new URL('../migrations/0008_household_display_name_source.sql', import.meta.url), 'utf8'));
   if (compatibilityMigration) sqlite.exec(readFileSync(new URL('../migrations/0009_seed_legacy_household_display_names.sql', import.meta.url), 'utf8'));
   sqlite.exec(readFileSync(new URL('../migrations/0010_access_audit.sql', import.meta.url), 'utf8'));
+  sqlite.exec(readFileSync(new URL('../migrations/0011_user_shop_preferences.sql', import.meta.url), 'utf8'));
   sqlite.prepare('INSERT INTO profile_settings VALUES (1,?,?,?,?)').run(displayName, 'Legacy house', 'Medicine cabinet', '2026-01-01T00:00:00.000Z');
   sqlite.prepare("INSERT INTO batches (id,name,strength,form,quantity,unit,expiry_date,location,notes,low_stock_threshold,created_at,updated_at) VALUES ('legacy','Medicine','','Tablets',2,'tablets',NULL,'','',1,'2026-01-01','2026-01-01')").run();
   return { sqlite, db: d1(sqlite) };

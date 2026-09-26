@@ -175,6 +175,12 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - `ARCHITECTURE.md` is the living system-design reference. It distinguishes deployed architecture from finalized-but-not-yet-deployed decisions and should be updated whenever a material architecture decision is finalized.
 - It records the finalized, pending-deployment secure Shop-administration onboarding foundation and future multi-Shop direction.
 
+## Active multi-Shop context (implementation pending review/deployment)
+
+- Migration `0011_user_shop_preferences.sql` adds a per-user last explicitly selected Shop preference. It is advisory only: every request revalidates the selected membership.
+- Authenticated `GET /api/shops` returns only the caller's Shop ids, names, and roles with the active Shop id. `X-Shop-Id` is accepted only for a current membership, persists that selection, and invalid selectors are rejected. Without it, resolution uses a valid saved preference then deterministic name/id fallback.
+- All resolved Shop API/context responses are `no-store`; inventory reads and mutations remain scoped by the resolved membership. No UI switcher, role administration, ownership transfer, or invitation-flow redesign was added.
+
 ## Secure Shop onboarding and administration foundation (deployed 2026-09-26)
 
 - Shop remains the visible product term; internal household tables and routes remain intact for deployed-client compatibility.
