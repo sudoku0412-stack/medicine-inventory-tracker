@@ -136,4 +136,11 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - Reported symptom: opening Add medicine or switching from a medicine detail to Edit medicine on a phone could briefly move the form outside the visible viewport before it snapped back.
 - Confirmed source cause: the mobile native dialog used legacy `vh` sizing plus auto margins for bottom-sheet placement, while a delayed focus call could scroll the dialog after it opened. Dynamic packaging preview content could also trigger scroll anchoring.
 - Fix: mobile dialogs are explicitly fixed to the bottom of the dynamic viewport, contain overscroll, and disable scroll anchoring. The medicine dialog resets its own scroll position after opening and focuses the medicine name with `preventScroll`, preserving keyboard access without moving the viewport. The expiry-date row is intentionally unchanged.
-- Regression coverage: `test/mobile-medicine-dialog.test.js` asserts the mobile viewport/scroll rules, opening focus behavior, edit transition, and unchanged expiry row.
+- Regression coverage: `test/mobile-medicine-dialog.test.js` asserts the mobile viewport/scroll rules, opening focus behavior, edit transition, and the intended expiry field.
+
+## Expiry-date field follow-up (2026-09-26)
+
+- The medicine form now has an explicitly labelled expiry date, concise help text, and an accessible **I don’t know the expiry date** checkbox. The checkbox records the existing `null` expiry value; it clears and disables the date field so the two states cannot conflict.
+- Editing an existing unknown-expiry medicine initializes that state correctly; opening a new form and a confirmed package-date suggestion restore an editable date field.
+- Checkbox styling is narrowly scoped so it remains a standard, touch-friendly control on mobile instead of inheriting the date input’s full-width/height styles. The Form/Unit choices and mobile dialog dynamic-viewport work are preserved.
+- Regression coverage: `test/expiry-date-field.test.js` covers known/unknown state behavior, and the existing mobile-dialog test now covers the intended expiry markup and control sizing.

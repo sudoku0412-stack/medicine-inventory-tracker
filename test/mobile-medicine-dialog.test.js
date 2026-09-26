@@ -16,6 +16,7 @@ test('mobile dialogs stay bottom-anchored to the dynamic viewport and contain sc
   assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.modal \{ position: fixed; inset: auto 0 0;[\s\S]*?max-height: calc\(100dvh - env\(safe-area-inset-top, 0px\)\);[\s\S]*?margin: 0; overflow-anchor: none; overscroll-behavior: contain;/);
 });
 
-test('medicine form keeps the expiry-date row unchanged', () => {
-  assert.match(page, /<label class="form-field"><span>Quantity <em>\*<\/em><\/span><input name="quantity"[\s\S]*?<label class="form-field"><span>Expiry date<\/span><input name="expiry" type="date" autocomplete="off" \/><\/label>/);
+test('medicine form keeps an accessible expiry date and unknown-expiry choice', () => {
+  assert.match(page, /<div class="form-field expiry-field">\s*<label for="expiryDate">Expiry date<\/label>\s*<input id="expiryDate" name="expiry" type="date" autocomplete="off" aria-describedby="expiryDateHelp" \/>\s*<label class="expiry-unknown" for="expiryUnknown"><input id="expiryUnknown" name="expiry_unknown" type="checkbox" \/><span>I don’t know the expiry date<\/span><\/label>\s*<small id="expiryDateHelp">Choose this when the package does not show an expiry date.<\/small>/);
+  assert.match(styles, /\.expiry-unknown input\[type="checkbox"\] \{ width: 18px; height: 18px; flex: none;/);
 });
