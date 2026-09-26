@@ -23,3 +23,11 @@ Read HANDOVER.md at the start of a new chat. These files are the project's persi
 Use one implementer and one consolidated Senior review per meaningful change. Give Luna small, explicit tasks; give Terra medium substantial features. Escalate after one unsuccessful fix round rather than repeating the same weak handoff. Use the UI Designer for initial designs and substantial UI changes. Verify important browser flows and responsive visual states before claiming completion.
 
 Monitor the account's five-hour usage during active work and before costly phases. If remaining usage is strictly below 15%, notify the user once, stop active agents, and pause work until the user directs otherwise. Do not automatically resume when limits reset. Keep communication short and avoid repetitive status polling.
+
+## Repository and branch preflight
+
+Before any specialist reads or edits implementation files, the orchestrator must give it the exact assigned checkout path and branch. The specialist must run a read-only preflight that confirms the repository root, current branch, working-tree status, and relationship to `origin/main`.
+
+Do not let a specialist implement in the long-lived shared root checkout when it is stale, on an unrelated branch, or contains changes outside the assigned task. Use a clean task-specific clone or worktree based on the latest `origin/main`, with a `codex/*` branch. If the assigned checkout is dirty or does not match the brief, stop and report the mismatch instead of editing.
+
+Specialists must not choose or create a different checkout or branch without approval from the orchestrator. Review agents must review the exact commit or clean checkout named in their brief. Before committing, the orchestrator must verify that only intended files changed and that the branch still contains the current `origin/main` history.
