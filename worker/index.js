@@ -8,8 +8,28 @@ import {
   visionConfig
 } from '../lib/shared.js';
 import { createD1Store, loadVapid } from '../lib/store-d1.js';
+import { resolveTenant } from '../lib/tenants.js';
+import { acceptHouseholdInvitation, createHouseholdInvitation, listHouseholdAccess, pendingHouseholdInvitations, revokeHouseholdInvitation } from '../lib/household-access.js';
 
 const jwksCache = { at: 0, keys: null };
+
+const bootstrapAssetPaths = new Set(['/index.html', '/app.js', '/styles.css', '/sw.js']);
+
+export function assetCacheControl(path) {
+  if (path === '/index.html') return 'no-store';
+  if (bootstrapAssetPaths.has(path)) return 'no-cache, must-revalidate';
+  if (/\.(?:avif|gif|jpe?g|png|svg|webp)$/i.test(path)) return 'public, max-age=31536000, immutable';
+  return null;
+}
+
+async function fetchAsset(request, env, assetPath) {
+  const response = await env.ASSETS.fetch(new URL(assetPath, request.url));
+  const cacheControl = assetCacheControl(assetPath);
+  if (!cacheControl) return response;
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', cacheControl);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
 
 function json(data, status = 200) {
   return new Response(data === undefined ? null : JSON.stringify(data), {
@@ -32,9 +52,7 @@ async function readJson(request) {
 
 async function ensureAccess(request, env) {
   const access = accessConfig(env);
-  if (!access) return;
-  // Zero Trust already validated the browser session; Cloudflare forwards this to the Worker.
-  if (request.headers.get('Cf-Access-Authenticated-User-Email')) return;
+  if (!access) throw Object.assign(new Error('Cloudflare Access JWT validation is not configured.'), { status: 503 });
   let keys = jwksCache.keys;
   if (!keys || Date.now() - jwksCache.at > 60 * 60 * 1000) {
     const certs = await fetch(access.certs);
@@ -43,21 +61,43 @@ async function ensureAccess(request, env) {
     jwksCache.keys = keys;
     jwksCache.at = Date.now();
   }
-  await requireCloudflareAccess(request, { env, now: Date.now(), keys });
+  return requireCloudflareAccess(request, { env, now: Date.now, keys });
 }
 
-async function getStore(env) {
+async function getStore(env, tenant) {
   const vapid = await loadVapid(env.KV, env);
-  return createD1Store(env.DB, env.PHOTOS, vapid);
+  return createD1Store(env.DB, env.PHOTOS, vapid, tenant);
+}
+
+async function migrationIsActive(db) {
+  try { return (await db.prepare("SELECT state FROM migration_runs WHERE singleton=1").first())?.state === 'active'; } catch { return false; }
 }
 
 export async function handleRequest(request, env, ctx) {
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api/')) {
     try {
-      await ensureAccess(request, env);
-      const store = await getStore(env);
+      const principal = await ensureAccess(request, env);
+      // Invitation discovery/acceptance deliberately runs before resolveTenant:
+      // an invited identity has no membership yet. Every other API remains
+      // membership-gated below.
+      const pendingInvitation = url.pathname === '/api/household/invitations/pending';
+      const invitationAcceptance = url.pathname.match(/^\/api\/household\/invitations\/([^/]+)\/accept$/);
+      if (request.method === 'GET' && pendingInvitation) return json(await pendingHouseholdInvitations(env.DB, principal));
+      if (request.method === 'POST' && invitationAcceptance) return json(await acceptHouseholdInvitation(env.DB, principal, invitationAcceptance[1]));
+      const tenant = await resolveTenant(env.DB, principal, env);
+      if (request.method !== 'GET' && await migrationIsActive(env.DB)) return json({ error: 'Inventory is temporarily read-only while a migration is in progress.' }, 503);
+      const invitation = url.pathname.match(/^\/api\/household\/invitations\/([^/]+)$/);
+      if (request.method === 'GET' && url.pathname === '/api/household/access') return json(await listHouseholdAccess(env.DB, tenant));
+      if (request.method === 'POST' && url.pathname === '/api/household/invitations') return json(await createHouseholdInvitation(env.DB, tenant, await readJson(request)), 201);
+      if (invitation && request.method === 'DELETE') {
+        await revokeHouseholdInvitation(env.DB, tenant, invitation[1]);
+        return new Response(null, { status: 204 });
+      }
+      const store = await getStore(env, tenant);
       const match = url.pathname.match(/^\/api\/batches\/([^/]+)(?:\/(consume|discard|photo))?$/);
+      if (request.method === 'GET' && url.pathname === '/api/settings') return json(await store.settings());
+      if (request.method === 'PATCH' && url.pathname === '/api/settings') return json(await store.updateSettings(await readJson(request)));
       if (request.method === 'GET' && url.pathname === '/api/batches') return json(await store.list());
       if (request.method === 'GET' && url.pathname === '/api/packaging/status') return json({ vision: Boolean(visionConfig(env)) });
       if (request.method === 'POST' && url.pathname === '/api/packaging/suggest') {
@@ -74,9 +114,9 @@ export async function handleRequest(request, env, ctx) {
         ctx.waitUntil(store.deliverPushes({ contact: env.PUSH_CONTACT }));
         return json(updated);
       }
-      if (match && request.method === 'POST' && match[2] === 'consume') return json(await store.consume(match[1], (await readJson(request)).amount));
+      if (match && request.method === 'POST' && match[2] === 'consume') return json(await store.consume(match[1], await readJson(request)));
       if (match && request.method === 'POST' && match[2] === 'discard') {
-        await store.discard(match[1]);
+        await store.discard(match[1], await readJson(request));
         return new Response(null, { status: 204 });
       }
       if (match && request.method === 'GET' && match[2] === 'photo') {
@@ -115,13 +155,13 @@ export async function handleRequest(request, env, ctx) {
       }
       return json({ error: 'Not found' }, 404);
     } catch (error) {
-      return json({ error: error.message || 'Server error' }, error.status || 500);
+      return json({ error: error.message || 'Server error', ...(Object.hasOwn(error, 'current') ? { current: error.current } : {}) }, error.status || 500);
     }
   }
 
   if (request.method !== 'GET' || !publicAssetPaths.has(url.pathname)) return new Response('Not found', { status: 404 });
   const assetPath = url.pathname === '/' ? '/index.html' : url.pathname;
-  return env.ASSETS.fetch(new URL(assetPath, request.url));
+  return fetchAsset(request, env, assetPath);
 }
 
 export default {
@@ -129,7 +169,11 @@ export default {
     return handleRequest(request, env, ctx);
   },
   async scheduled(event, env, ctx) {
-    const store = await getStore(env);
-    ctx.waitUntil(store.deliverPushes({ contact: env.PUSH_CONTACT }));
+    ctx.waitUntil((async () => {
+      const memberships = await env.DB.prepare("SELECT household_id,user_id FROM memberships WHERE role='owner'").all();
+      const vapid = await loadVapid(env.KV, env);
+      await Promise.all((memberships.results || []).map(({ household_id, user_id }) =>
+        createD1Store(env.DB, env.PHOTOS, vapid, { householdId: household_id, userId: user_id }).deliverPushes({ contact: env.PUSH_CONTACT })));
+    })());
   }
 };

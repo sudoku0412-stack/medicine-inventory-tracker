@@ -24,6 +24,10 @@ The SQLite database is created at `data/inventory.sqlite`; it is deliberately ex
 
 Binding `HOST` to a non-loopback address exposes an unauthenticated application and is unsafe unless access controls are provided externally.
 
+## Profile and household settings
+
+Profile & settings stores one local household profile: display name, household name, and the default storage location for new medicine batches. The defaults are **Kaushik**, **Kaushik’s home**, and **Medicine cabinet**. Settings are stored alongside the inventory in SQLite locally and in D1 in production; updating them never changes existing medicine records. On Cloudflare, apply the D1 migrations before deploying the Worker.
+
 ## Packaging photos
 
 Add or edit a batch with an optional JPEG, PNG, or WebP photo (2 MB max). Take photo opens the device camera in the browser on localhost or HTTPS (Chrome will ask for permission). Desktop Chrome does not open the camera from a file-picker `capture` attribute, so this uses a live preview instead. Upload photo still uses the file picker. The photo is kept only after you save the batch. Manual name, quantity, and expiry entry always remain available.
@@ -59,4 +63,10 @@ Production URL: **https://medicineinventory.craftloop.ca**
 
 Deploy with **Cloudflare Workers + D1 + R2** (always on). No tunnel and no `npm start` on your laptop for phone use. Step-by-step: **`deploy/cloudflare-workers.md`**.
 
-Requires **Cloudflare Access** on that hostname and `GEMINI_API_KEY` as a Worker secret. Local dev remains `npm start` → http://127.0.0.1:3000 with SQLite in `data/`.
+Requires **Cloudflare Access** on that hostname and `GEMINI_API_KEY` as a Worker secret. The production Worker validates the signed Access JWT (issuer, audience, expiry, and signature) itself; it never treats an incoming email header as proof of identity. Local dev remains a loopback-only, single-household SQLite workflow at `npm start` → http://127.0.0.1:3000.
+
+## Cloud households
+
+Cloud data is isolated by server-side household membership. After applying migration `0004_household_tenants.sql`, set `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, and an `INITIAL_OWNER_EMAILS` Worker secret before deploying. The final value is a comma-separated one-time bootstrap allowlist, kept only in Cloudflare secrets. The first verified allowed account creates the initial household and receives the existing unassigned D1 records; unknown accounts and later allowlisted accounts do not receive a household automatically.
+
+Cloudflare Access can use Google and Apple as identity providers. Apple requires the usual Apple Developer Service ID, return URL, domain association, and private key setup in Cloudflare Access; none of those values belong in this repository. After applying migration `0005_household_invitations.sql`, household owners can create and revoke pending member invitations in Profile. Invitations are records only in this release: they do not send email or grant access until a future, explicit acceptance flow verifies the signed-in identity.
