@@ -99,3 +99,11 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - Retry safety follow-up: each browser action retains its operation ID and base revision through an ambiguous network failure, timeout/rate limit, or server error. It clears only after success, a definitive client/validation error (including a 409 conflict), or an explicit new action. This prevents a retry from duplicating a create, consume, or discard. A concurrent duplicate create that had already uploaded a separate photo now removes the losing R2 object after replaying the receipt.
 - This slice deliberately does **not** add IndexedDB, an offline mutation queue, a change feed, merge UI, background reconciliation, auth changes, notifications, or photo-sync redesign. The next safe step, after production migration and verification, is a separately scoped pull/change feed design.
 - Operational note: operation receipts are retained indefinitely in this first slice; establish a retention policy before high-volume sync usage.
+
+## Production deployment follow-up (2026-09-25)
+
+- PR #19 (`e50bc03`) is merged to `main` and deployed to `medicineinventory.craftloop.ca`.
+- Cloudflare Worker version: `fbcecb56-1043-445f-bd29-a83680165c6c`.
+- D1 migration check reported **No migrations to apply**; no migrations were run.
+- Unauthenticated custom-domain verification returned HTTP 302 to the Cloudflare Access login endpoint. No Access or DNS configuration was changed.
+- Browser sign-out was not exercised because it requires a real authenticated user session.
