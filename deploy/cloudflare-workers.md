@@ -53,7 +53,7 @@ npx wrangler secret put INITIAL_OWNER_EMAILS
 
 Use your Access team URL (for example `https://<team>.cloudflareaccess.com`) and the application **Audience** tag from the Access app for this hostname. `INITIAL_OWNER_EMAILS` is a comma-separated, one-time bootstrap allowlist. Enter it directly into the secret prompt; do not add real addresses to `wrangler.toml`, source, or documentation.
 
-For the tenant migration, apply migrations first, set these three Access/bootstrap secrets, then deploy. The first successfully verified allowlisted account atomically creates the first household and backfills existing unassigned batches, notifications, settings, and push subscriptions to it. Unknown users are denied; a second allowlisted account is not auto-added. Confirm that first sign-in before enabling Access policies for additional people.
+For the tenant migration, apply migrations first, set these three Access/bootstrap secrets, then deploy. A verified allowlisted account must explicitly submit the Shop setup screen to atomically create the first Shop and backfill existing unassigned batches, notifications, settings, and push subscriptions. Page loads never create access. Unknown users are denied; a second allowlisted account is not auto-added. Confirm that first setup before enabling Access policies for additional people.
 
 7. Attach the custom domain in the Cloudflare dashboard if Wrangler has not already linked `medicineinventory.craftloop.ca`.
 
