@@ -158,6 +158,7 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - PR #34 was merged and deployed to `medicineinventory.craftloop.ca` as Worker version `dd57709e-00d9-4295-9c6e-b77d3b06e56e`. The remote D1 ledger reported no pending migrations, and the custom domain returned the expected Cloudflare Access HTTP 302 redirect.
 - Follow-up evidence from the production iPhone showed the icon was removed but the native input remained oversized. The next patch replaces the ineffective minimum-only rule with a scoped iOS appearance reset and strict 44px physical/logical height bounds. Do not mark the incident closed until the reporter confirms the deployed field on the original device.
 - PR #36 (`a0bcb34`, “Fix iPhone expiry field height regression”) was merged and deployed to `medicineinventory.craftloop.ca` as Worker version `a1505559-c94d-4767-8c87-96fa7ccb53ad`. No database migration was required. An unauthenticated production asset request reached the expected Cloudflare Access HTTP 302 boundary; final acceptance remains the reporter's signed-in check on the original iPhone.
+- The reporter confirmed the field height is correct on the original iPhone. The missing calendar icon is accepted as a separate, deferred enhancement; the height regression is closed.
 
 ## Shop terminology follow-up (2026-09-26)
 
@@ -175,11 +176,12 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - `ARCHITECTURE.md` is the living system-design reference. It distinguishes deployed architecture from finalized-but-not-yet-deployed decisions and should be updated whenever a material architecture decision is finalized.
 - It records the finalized, pending-deployment secure Shop-administration onboarding foundation and future multi-Shop direction.
 
-## Active multi-Shop context (implementation pending review/deployment)
+## Active multi-Shop context (deployed 2026-09-26)
 
 - Migration `0011_user_shop_preferences.sql` adds a per-user last explicitly selected Shop preference. It is advisory only: every request revalidates the selected membership.
 - Authenticated `GET /api/shops` returns only the caller's Shop ids, names, and roles with the active Shop id. `X-Shop-Id` is accepted only for a current membership, persists that selection, and invalid selectors are rejected. Without it, resolution uses a valid saved preference then deterministic name/id fallback.
 - All resolved Shop API/context responses are `no-store`; inventory reads and mutations remain scoped by the resolved membership. No UI switcher, role administration, ownership transfer, or invitation-flow redesign was added.
+- PR #38 (`02dea4c`) was merged. Migration `0011_user_shop_preferences.sql` was applied successfully, followed by Worker version `1130cf23-51bd-4991-b096-26a138d733df`. A follow-up migration check reported no pending migrations, and the custom domain returned the expected Cloudflare Access HTTP 302 redirect.
 
 ## Secure Shop onboarding and administration foundation (deployed 2026-09-26)
 
