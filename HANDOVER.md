@@ -155,3 +155,9 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 
 - User-facing product language now calls the shared inventory a **Shop** across the public UI, invitation/access flow, profile validation, and surfaced authentication, membership, and push-subscription errors.
 - Database tables and fields, API routes, internal DOM hooks, migration names, and invitation payload contracts intentionally remain `household`-scoped for compatibility. `test/shop-terminology.test.js` guards the rendered copy and user-facing messages while explicitly checking those internal contracts remain unchanged.
+
+## Shop terminology deployment (2026-09-26)
+
+- PR #29 was conflict-resolved, reviewed, squash-merged, and deployed to `medicineinventory.craftloop.ca`; no D1 migration was required for this copy-only release.
+- Cloudflare Worker version: `abdd211c-4434-4b30-a731-bc21e677cae9`.
+- Full test suite passed: `npm test` — 58 passing.
