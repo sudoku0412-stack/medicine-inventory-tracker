@@ -151,6 +151,11 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - Worker version: `144978e3-3fc7-45b0-99e0-e294c03496b7`.
 - Remote D1 status reported no pending migrations; unauthenticated custom-domain verification returned the expected Cloudflare Access HTTP 302 redirect.
 
+## Expiry-date mobile control follow-up (2026-09-26)
+
+- The expiry field now uses a compact 44px mobile control consistent with the adjacent medicine fields. Safari’s visible native calendar indicator is hidden, while the native date input, keyboard behavior, and assistive-technology semantics remain available.
+- The unknown-expiry checkbox and package-suggestion flows are unchanged. `test/mobile-medicine-dialog.test.js` guards the compact class and indicator rule.
+
 ## Shop terminology follow-up (2026-09-26)
 
 - User-facing product language now calls the shared inventory a **Shop** across the public UI, invitation/access flow, profile validation, and surfaced authentication, membership, and push-subscription errors.
