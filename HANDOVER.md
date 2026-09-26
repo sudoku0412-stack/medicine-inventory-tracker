@@ -161,3 +161,8 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - PR #29 was conflict-resolved, reviewed, squash-merged, and deployed to `medicineinventory.craftloop.ca`; no D1 migration was required for this copy-only release.
 - Cloudflare Worker version: `abdd211c-4434-4b30-a731-bc21e677cae9`.
 - Full test suite passed: `npm test` — 58 passing.
+
+## Architecture reference (2026-09-26)
+
+- `ARCHITECTURE.md` is the living system-design reference. It distinguishes deployed architecture from finalized-but-not-yet-deployed decisions and should be updated whenever a material architecture decision is finalized.
+- It records the next secure Shop-administration onboarding design and its one prerequisite: choose the verified Access account permitted to establish the initial owner.
