@@ -30,6 +30,7 @@ function tenantDatabase() {
   sqlite.exec(readFileSync(new URL('../migrations/0004_household_tenants.sql', import.meta.url), 'utf8'));
   sqlite.exec(readFileSync(new URL('../migrations/0005_household_invitations.sql', import.meta.url), 'utf8'));
   sqlite.exec(readFileSync(new URL('../migrations/0006_household_invitation_expiration.sql', import.meta.url), 'utf8'));
+  sqlite.exec(readFileSync(new URL('../migrations/0007_sync_mutation_foundation.sql', import.meta.url), 'utf8'));
   sqlite.prepare("INSERT INTO profile_settings VALUES (1,'Legacy','Legacy house','Medicine cabinet','2026-01-01T00:00:00.000Z')").run();
   sqlite.prepare("INSERT INTO batches (id,name,strength,form,quantity,unit,expiry_date,location,notes,low_stock_threshold,created_at,updated_at) VALUES ('legacy','Medicine','','Tablets',2,'tablets',NULL,'','',1,'2026-01-01','2026-01-01')").run();
   return { sqlite, db: d1(sqlite) };
@@ -76,6 +77,77 @@ test('a household-scoped D1 store cannot list another household’s batches', as
   assert.equal(await store.photoMeta('legacy'), null);
   await assert.rejects(() => store.update('legacy', { name: 'No access' }), { status: 404 });
   assert.equal((await createD1Store(db, { put: async () => {}, delete: async () => {} }, { publicKey: 'test' }, owner).list()).length, 1);
+  sqlite.close();
+});
+
+test('sync migration adds revisions and tenant-scoped operation receipts', () => {
+  const { sqlite } = tenantDatabase();
+  assert.equal(sqlite.prepare("SELECT revision FROM batches WHERE id='legacy'").get().revision, 1);
+  assert.deepEqual(sqlite.prepare('PRAGMA table_info(mutation_receipts)').all().map(column => column.name), ['household_id', 'operation_id', 'batch_id', 'operation', 'response_status', 'response_body', 'created_at']);
+  sqlite.close();
+});
+
+test('sync mutations replay duplicate operation IDs and reject stale revisions with the current batch', async () => {
+  const { sqlite, db } = tenantDatabase();
+  const owner = await resolveTenant(db, { provider: 'cloudflare_access', subject: 'owner', email: 'owner@example.test' }, { INITIAL_OWNER_EMAILS: 'owner@example.test' });
+  const store = createD1Store(db, { put: async () => {}, delete: async () => {} }, { publicKey: 'test' }, owner, () => new Date('2026-02-02T00:00:00.000Z'));
+  const createPayload = { name: 'Sync medicine', form: 'Tablets', quantity: 8, unit: 'tablets', operationId: '11111111-1111-4111-8111-111111111111', baseRevision: 0 };
+  const created = await store.create(createPayload);
+  const replayedCreate = await store.create(createPayload);
+  assert.equal(replayedCreate.id, created.id);
+  assert.equal(sqlite.prepare("SELECT count(*) AS n FROM batches WHERE name='Sync medicine'").get().n, 1);
+  assert.equal(created.revision, 1);
+
+  const updatePayload = { name: 'Updated sync medicine', operationId: '22222222-2222-4222-8222-222222222222', baseRevision: 1 };
+  const updated = await store.update(created.id, updatePayload);
+  assert.equal(updated.revision, 2);
+  assert.equal((await store.update(created.id, updatePayload)).revision, 2);
+  assert.equal(sqlite.prepare('SELECT revision,name FROM batches WHERE id=?').get(created.id).name, 'Updated sync medicine');
+  await assert.rejects(() => store.consume(created.id, { amount: 1, operationId: '33333333-3333-4333-8333-333333333333', baseRevision: 1 }), error => {
+    assert.equal(error.status, 409);
+    assert.equal(error.current.id, created.id);
+    assert.equal(error.current.revision, 2);
+    return true;
+  });
+  sqlite.close();
+});
+
+test('a concurrent duplicate create removes the losing uploaded photo after receipt replay', async () => {
+  const { sqlite, db } = tenantDatabase();
+  const owner = await resolveTenant(db, { provider: 'cloudflare_access', subject: 'owner', email: 'owner@example.test' }, { INITIAL_OWNER_EMAILS: 'owner@example.test' });
+  const uploaded = [], deleted = [];
+  let arrivals = 0, release;
+  const ready = new Promise(resolve => { release = resolve; });
+  const photos = {
+    put: async key => { uploaded.push(key); if (++arrivals === 2) release(); await ready; },
+    delete: async key => { deleted.push(key); }
+  };
+  const store = createD1Store(db, photos, { publicKey: 'test' }, owner);
+  const payload = { name: 'Photo race', form: 'Tablets', quantity: 2, unit: 'tablets', photo: 'data:image/jpeg;base64,/9j/', operationId: '55555555-5555-4555-8555-555555555555', baseRevision: 0 };
+  const [first, second] = await Promise.all([store.create(payload), store.create(payload)]);
+  assert.equal(first.id, second.id);
+  assert.equal(uploaded.length, 2);
+  assert.equal(deleted.length, 1);
+  assert.notEqual(deleted[0], sqlite.prepare('SELECT photo_path FROM batches WHERE id=?').get(first.id).photo_path);
+  sqlite.close();
+});
+
+test('sync receipts and mutations remain isolated between households', async () => {
+  const { sqlite, db } = tenantDatabase();
+  const owner = await resolveTenant(db, { provider: 'cloudflare_access', subject: 'owner', email: 'owner@example.test' }, { INITIAL_OWNER_EMAILS: 'owner@example.test' });
+  sqlite.prepare("INSERT INTO users VALUES ('other-user','now')").run();
+  sqlite.prepare("INSERT INTO households VALUES ('other-household','Other','now')").run();
+  sqlite.prepare("INSERT INTO memberships VALUES ('other-household','other-user','member','now')").run();
+  const photos = { put: async () => {}, delete: async () => {} };
+  const ownerStore = createD1Store(db, photos, { publicKey: 'test' }, owner);
+  const otherStore = createD1Store(db, photos, { publicKey: 'test' }, { householdId: 'other-household', userId: 'other-user' });
+  const operationId = '44444444-4444-4444-8444-444444444444';
+  const payload = { name: 'Household item', form: 'Tablets', quantity: 2, unit: 'tablets', operationId, baseRevision: 0 };
+  const ownerBatch = await ownerStore.create(payload);
+  const otherBatch = await otherStore.create(payload);
+  assert.notEqual(ownerBatch.id, otherBatch.id);
+  assert.equal(sqlite.prepare('SELECT count(*) AS n FROM mutation_receipts WHERE operation_id=?').get(operationId).n, 2);
+  assert.equal(await otherStore.get(ownerBatch.id), undefined);
   sqlite.close();
 });
 

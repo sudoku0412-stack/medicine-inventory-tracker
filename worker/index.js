@@ -114,9 +114,9 @@ export async function handleRequest(request, env, ctx) {
         ctx.waitUntil(store.deliverPushes({ contact: env.PUSH_CONTACT }));
         return json(updated);
       }
-      if (match && request.method === 'POST' && match[2] === 'consume') return json(await store.consume(match[1], (await readJson(request)).amount));
+      if (match && request.method === 'POST' && match[2] === 'consume') return json(await store.consume(match[1], await readJson(request)));
       if (match && request.method === 'POST' && match[2] === 'discard') {
-        await store.discard(match[1]);
+        await store.discard(match[1], await readJson(request));
         return new Response(null, { status: 204 });
       }
       if (match && request.method === 'GET' && match[2] === 'photo') {
@@ -155,7 +155,7 @@ export async function handleRequest(request, env, ctx) {
       }
       return json({ error: 'Not found' }, 404);
     } catch (error) {
-      return json({ error: error.message || 'Server error' }, error.status || 500);
+      return json({ error: error.message || 'Server error', ...(Object.hasOwn(error, 'current') ? { current: error.current } : {}) }, error.status || 500);
     }
   }
 
