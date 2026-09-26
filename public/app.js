@@ -1,3 +1,5 @@
+import { greetingForTime } from './greeting.js';
+
 let medicines=[],notifications=[],settings=null,activeFilter='all',activeBatchId=null;
 const labels={healthy:'Healthy',expiring:'Expiring soon',expired:'Expired',low:'Low stock',unknown:'Expiry unknown'},qs=(s,p=document)=>p.querySelector(s),qsa=(s,p=document)=>[...p.querySelectorAll(s)],initials=n=>n.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase(),date=v=>v?new Intl.DateTimeFormat('en-CA',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(`${v}T00:00:00Z`)):'Not recorded';
 const unit=b=>`${b.quantity} ${b.unit}`;
@@ -17,7 +19,7 @@ function el(tag,props={},...kids){const n=document.createElement(tag);Object.ent
 const pill=s=>el('span',{class:`status-pill ${s}`,text:labels[s]});
 let packagingPhoto=null,packagingExisting=false,visionEnabled=false;
 function toast(msg){const t=qs('#toast');qs('p',t).textContent=msg;t.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('show'),2800)}
-function applySettings(next,{form=true}={}){settings=next;const name=next.display_name,home=next.household_name;qsa('.avatar').forEach(a=>{a.textContent=initials(name);a.setAttribute('aria-label',`Open ${name}'s profile`)});qs('#dashboardGreeting').textContent=`Good morning, ${name}`;qs('#sideHouseholdName').textContent=home;if(form){const f=qs('#profileSettingsForm');f.elements.display_name.value=name;f.elements.household_name.value=home;f.elements.default_storage_location.value=next.default_storage_location;profileChanged()}}
+function applySettings(next,{form=true}={}){settings=next;const name=next.display_name,home=next.household_name;qsa('.avatar').forEach(a=>{a.textContent=initials(name);a.setAttribute('aria-label',`Open ${name}'s profile`)});qs('#dashboardGreeting').textContent=`${greetingForTime(new Date())}, ${name}`;qs('#sideHouseholdName').textContent=home;if(form){const f=qs('#profileSettingsForm');f.elements.display_name.value=name;f.elements.household_name.value=home;f.elements.default_storage_location.value=next.default_storage_location;profileChanged()}}
 function profileChanged(){const f=qs('#profileSettingsForm'),save=qs('#saveProfileSettings');if(!settings)return;const next=Object.fromEntries(new FormData(f));const changed=Object.keys(settings).some(k=>next[k]!==settings[k]);save.disabled=!changed||!f.checkValidity()}
 function markSuggested(name,on){const field=qs(name).closest('.form-field');if(field)field.classList.toggle('suggested',on)}
 function showPackaging(status,photo){packagingPhoto=photo||null;qs('#packagingPreviewImg').hidden=!photo;if(photo)qs('#packagingPreviewImg').src=photo;qs('#packagingSuggestStatus').textContent=status||'';qs('#packagingPreview').hidden=!photo&&!status;qs('#clearPackagingPhoto').hidden=!photo&&!packagingExisting}

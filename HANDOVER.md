@@ -107,3 +107,9 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - D1 migration check reported **No migrations to apply**; no migrations were run.
 - Unauthenticated custom-domain verification returned HTTP 302 to the Cloudflare Access login endpoint. No Access or DNS configuration was changed.
 - Browser sign-out was not exercised because it requires a real authenticated user session.
+
+## Greeting follow-up (2026-09-26)
+
+- The dashboard greeting now derives from the browser's local hour: night (21:00–04:59), morning (05:00–11:59), afternoon (12:00–16:59), and evening (17:00–20:59).
+- `public/greeting.js` keeps the time classification pure and explicit; fixed-hour regression coverage avoids dependence on the test machine clock or timezone.
+- The greeting helper is included in the shared public-asset allowlist and has a Worker route regression test.
