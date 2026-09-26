@@ -23,7 +23,7 @@ function d1(sqlite) {
   } };
 }
 
-function tenantDatabase(displayName = 'Legacy') {
+function tenantDatabase(displayName = 'Legacy', { compatibilityMigration = true } = {}) {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(readFileSync(new URL('../migrations/0001_initial.sql', import.meta.url), 'utf8'));
   sqlite.exec(readFileSync(new URL('../migrations/0003_profile_settings.sql', import.meta.url), 'utf8'));
@@ -32,6 +32,7 @@ function tenantDatabase(displayName = 'Legacy') {
   sqlite.exec(readFileSync(new URL('../migrations/0006_household_invitation_expiration.sql', import.meta.url), 'utf8'));
   sqlite.exec(readFileSync(new URL('../migrations/0007_sync_mutation_foundation.sql', import.meta.url), 'utf8'));
   sqlite.exec(readFileSync(new URL('../migrations/0008_household_display_name_source.sql', import.meta.url), 'utf8'));
+  if (compatibilityMigration) sqlite.exec(readFileSync(new URL('../migrations/0009_seed_legacy_household_display_names.sql', import.meta.url), 'utf8'));
   sqlite.prepare('INSERT INTO profile_settings VALUES (1,?,?,?,?)').run(displayName, 'Legacy house', 'Medicine cabinet', '2026-01-01T00:00:00.000Z');
   sqlite.prepare("INSERT INTO batches (id,name,strength,form,quantity,unit,expiry_date,location,notes,low_stock_threshold,created_at,updated_at) VALUES ('legacy','Medicine','','Tablets',2,'tablets',NULL,'','',1,'2026-01-01','2026-01-01')").run();
   return { sqlite, db: d1(sqlite) };
@@ -51,13 +52,13 @@ test('only an explicit configured owner can bootstrap legacy rows', async () => 
   sqlite.close();
 });
 
-test('verified identity display names seed new settings, preserve user edits including Kaushik, and remain household-scoped', async () => {
-  const { sqlite, db } = tenantDatabase('Kaushik');
+test('verified identity display names seed legacy settings, preserve user edits including Kaushik, and remain household-scoped', async () => {
+  const { sqlite, db } = tenantDatabase('Sudoku');
   const owner = await resolveTenant(db, { provider: 'cloudflare_access', subject: 'owner', email: 'owner@example.test' }, { INITIAL_OWNER_EMAILS: 'owner@example.test' });
   const photos = { put: async () => {}, delete: async () => {} };
   const ownerStore = createD1Store(db, photos, { publicKey: 'test' }, { ...owner, displayName: 'Owner Name' });
-  assert.equal((await ownerStore.settings()).display_name, 'Kaushik');
-  assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'user');
+  assert.equal((await ownerStore.settings()).display_name, 'Owner Name');
+  assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'identity_seed');
   await ownerStore.updateSettings({ display_name: 'Kaushik', household_name: 'Legacy house', default_storage_location: 'Medicine cabinet' });
   assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'user');
 
@@ -68,6 +69,36 @@ test('verified identity display names seed new settings, preserve user edits inc
   assert.equal((await otherStore.settings()).display_name, 'Other Person');
   assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get('other-household').display_name_source, 'identity_seed');
   assert.equal((await ownerStore.settings()).display_name, 'Kaushik');
+  sqlite.close();
+});
+
+test('0009 reclassifies legacy markers globally, seeds Sudoku once, preserves later edits, and isolates household reads', async () => {
+  const { sqlite, db } = tenantDatabase('Sudoku', { compatibilityMigration: false });
+  const owner = await resolveTenant(db, { provider: 'cloudflare_access', subject: 'kmaz-subject', email: 'kmaz285@gmail.com' }, { INITIAL_OWNER_EMAILS: 'kmaz285@gmail.com' });
+  // Emulate an owner who bootstrapped before this fix, when 0008 recorded
+  // every inherited profile value as user-owned.
+  sqlite.prepare("UPDATE household_settings SET display_name_source='user' WHERE household_id=?").run(owner.householdId);
+  sqlite.prepare("INSERT INTO users VALUES ('other-user','now')").run();
+  sqlite.prepare("INSERT INTO households VALUES ('other-household','Other','now')").run();
+  sqlite.prepare("INSERT INTO memberships VALUES ('other-household','other-user','owner','now')").run();
+  sqlite.prepare("INSERT INTO household_settings (household_id,display_name,household_name,default_storage_location,updated_at,display_name_source) VALUES ('other-household','Chosen Name','Other','Medicine cabinet','now','user')").run();
+  sqlite.exec(readFileSync(new URL('../migrations/0009_seed_legacy_household_display_names.sql', import.meta.url), 'utf8'));
+  assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'default');
+  const otherBeforeSeed = sqlite.prepare("SELECT display_name,display_name_source FROM household_settings WHERE household_id='other-household'").get();
+  assert.equal(otherBeforeSeed.display_name, 'Chosen Name');
+  assert.equal(otherBeforeSeed.display_name_source, 'default');
+
+  const photos = { put: async () => {}, delete: async () => {} };
+  const ownerStore = createD1Store(db, photos, { publicKey: 'test' }, { ...owner, displayName: 'Kaushik Sudesna' });
+  assert.equal((await ownerStore.settings()).display_name, 'Kaushik Sudesna');
+  assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'identity_seed');
+  assert.equal(sqlite.prepare("SELECT display_name FROM household_settings WHERE household_id='other-household'").get().display_name, 'Chosen Name');
+  assert.equal(sqlite.prepare("SELECT display_name_source FROM household_settings WHERE household_id='other-household'").get().display_name_source, 'default');
+
+  await ownerStore.updateSettings({ display_name: 'My Chosen Name', household_name: 'Legacy house', default_storage_location: 'Medicine cabinet' });
+  const laterPrincipalStore = createD1Store(db, photos, { publicKey: 'test' }, { ...owner, displayName: 'Different Verified Name' });
+  assert.equal((await laterPrincipalStore.settings()).display_name, 'My Chosen Name');
+  assert.equal(sqlite.prepare('SELECT display_name_source FROM household_settings WHERE household_id=?').get(owner.householdId).display_name_source, 'user');
   sqlite.close();
 });
 
