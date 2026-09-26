@@ -73,6 +73,13 @@ Migration `0005_household_invitations.sql` was applied to production D1 and the 
 - New household settings are seeded from the signed Cloudflare Access JWT `name`/`common_name` claim. If neither claim is present, they use a sanitized email local-part. Migration `0008_household_display_name_source.sql` marks all existing settings as user-owned—including any intentionally named “Kaushik”—and newly created settings as identity-seeded. The browser never supplies identity data.
 - Deploy migration `0008_household_display_name_source.sql` after `0007_sync_mutation_foundation.sql` and before the Worker. No secret changes are required; `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, and `INITIAL_OWNER_EMAILS` remain required for production.
 
+## Display-name identity-seed compatibility fix (pending deployment)
+
+- Reported impact: `kmaz285@gmail.com` saw the inherited legacy profile name `Sudoku` in Profile and the greeting, despite a verified Access identity.
+- Root cause: bootstrap copied the pre-identity local profile into `household_settings`; 0008 conservatively labelled it `user`, which correctly prevented replacement but incorrectly treated an inherited/default value as an explicit save.
+- Migration `0009_seed_legacy_household_display_names.sql` is the explicitly authorized one-time compatibility rule: it changes every pre-0009 `user` marker to seed-eligible `default`, including inherited/default values such as `Sudoku`. Because no earlier edit audit exists, this can also replace a historic explicit name on that household's next authenticated settings read. Only the verified JWT `name`/`common_name` (or sanitized email local-part fallback) may replace it and records `identity_seed`. New bootstraps also label copied local profiles `default`. A later `PATCH /api/settings` records `user` and is never re-seeded.
+- Apply 0009 after 0008 and before deploying this Worker. No Access, DNS, or secret changes are required. Verify the authenticated Profile and dashboard greeting for the reported account after deployment.
+
 Do not launch Cursor cloud agents for this project. Read this file at the start of a new chat. Do not re-fix completed Phase 2 items unless a regression is found.
 
 ## Cache-policy checkpoint (2026-09-25)
