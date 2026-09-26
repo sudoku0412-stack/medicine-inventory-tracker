@@ -125,3 +125,10 @@ Do not launch Cursor cloud agents for this project. Read this file at the start 
 - The dashboard greeting now derives from the browser's local hour: night (21:00–04:59), morning (05:00–11:59), afternoon (12:00–16:59), and evening (17:00–20:59).
 - `public/greeting.js` keeps the time classification pure and explicit; fixed-hour regression coverage avoids dependence on the test machine clock or timezone.
 - The greeting helper is included in the shared public-asset allowlist and has a Worker route regression test.
+
+## Mobile medicine dialog stability follow-up (2026-09-26)
+
+- Reported symptom: opening Add medicine or switching from a medicine detail to Edit medicine on a phone could briefly move the form outside the visible viewport before it snapped back.
+- Confirmed source cause: the mobile native dialog used legacy `vh` sizing plus auto margins for bottom-sheet placement, while a delayed focus call could scroll the dialog after it opened. Dynamic packaging preview content could also trigger scroll anchoring.
+- Fix: mobile dialogs are explicitly fixed to the bottom of the dynamic viewport, contain overscroll, and disable scroll anchoring. The medicine dialog resets its own scroll position after opening and focuses the medicine name with `preventScroll`, preserving keyboard access without moving the viewport. The expiry-date row is intentionally unchanged.
+- Regression coverage: `test/mobile-medicine-dialog.test.js` asserts the mobile viewport/scroll rules, opening focus behavior, edit transition, and unchanged expiry row.
